@@ -161,7 +161,10 @@ def xlsx_antwort(data):
 # ---------------------------------------- Designter CV (HTML -> PDF über Chrome)
 def _finde_chrome():
     """Chrome/Chromium suchen – erst im PATH (Linux-Server), dann macOS-Apps."""
-    for name in ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable"):
+    # Reihenfolge wichtig: Das echte Chrome-Paket zuerst. Unter Ubuntu ist
+    # "chromium-browser" oft nur ein Snap-Wrapper, der ins Sandbox-Verzeichnis
+    # schreibt statt an den angegebenen Pfad – der PDF-Export liefe dann ins Leere.
+    for name in ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser"):
         p = shutil.which(name)
         if p:
             return p
