@@ -159,12 +159,23 @@ def xlsx_antwort(data):
 
 
 # ---------------------------------------- Designter CV (HTML -> PDF über Chrome)
-CHROME = next((p for p in [
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/Applications/Chromium.app/Contents/MacOS/Chromium",
-    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
-] if os.path.exists(p)), None)
+def _finde_chrome():
+    """Chrome/Chromium suchen – erst im PATH (Linux-Server), dann macOS-Apps."""
+    for name in ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable"):
+        p = shutil.which(name)
+        if p:
+            return p
+    for p in ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+              "/Applications/Chromium.app/Contents/MacOS/Chromium",
+              "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+              "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+              "/usr/bin/chromium", "/usr/bin/google-chrome"):
+        if os.path.exists(p):
+            return p
+    return None
+
+
+CHROME = _finde_chrome()
 
 # Schnelle, feste HTML-Designs (zuverlässig, mehrseitig, ~3 s). Weitere Stile generiert Claude.
 DESIGNS = {"pro": "cv_pro.html", "gruen": "cv_gruen.html", "clean": "cv_clean.html", "blob": "cv_blob.html"}
@@ -252,14 +263,12 @@ Aufbau (verbindlich):
 Gib AUSSCHLIESSLICH das HTML-Dokument zurück – KEIN Markdown, KEINE Code-Fences, KEIN Kommentar."""
 
 
-def design_via_claude(daten, stil="gruen"):
-    g = (daten.get("geschlecht") or "").strip().lower()
-    tn = "Teilnehmerin" if g == "w" else "Teilnehmer"
-    prompt = (CV_DESIGN_SYSTEM.replace("__STIL__", STILE.get(stil, STILE["gruen"])).replace("TEILNEHMER_TITEL", tn)
-              + "\n\nBewerber-Daten (JSON):\n" + json.dumps(daten, ensure_ascii=False, indent=1))
-    r = subprocess.run([CLAUDE_BIN, "-p", prompt, "--output-format", "text"],
-                       capture_output=True, text=True, timeout=300)
-    out = (r.stdout or "").strip()
+def _html_ausschneiden(out):
+    """Aus der Antwort das reine HTML-Dokument herausholen."""
+    out = (out or "").strip()
+    if out.count("&lt;") > 10 and "<html" not in out.lower():
+        import html as _htmlmod
+        out = _htmlmod.unescape(out)
     lo = out.lower()
     i = lo.find("<!doctype")
     if i < 0:
@@ -267,7 +276,48 @@ def design_via_claude(daten, stil="gruen"):
     j = lo.rfind("</html>")
     if i >= 0 and j >= 0:
         return out[i:j + 7]
-    raise RuntimeError("Claude hat kein gültiges HTML geliefert.")
+    raise RuntimeError("Die KI hat kein gültiges HTML geliefert.")
+
+
+def _design_text(prompt, bild_pfad=None):
+    """Design-HTML erzeugen. Bevorzugt die API (läuft auch auf einem Server),
+    sonst die lokale Claude-CLI (nutzt das Max-Abo). Ein optionales Referenzbild
+    wird bei der API direkt mitgeschickt statt von der Platte gelesen."""
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        import anthropic
+        inhalt = []
+        if bild_pfad:
+            with open(bild_pfad, "rb") as fh:
+                b64 = base64.standard_b64encode(fh.read()).decode("utf-8")
+            inhalt.append({"type": "image",
+                           "source": {"type": "base64", "media_type": "image/png", "data": b64}})
+        inhalt.append({"type": "text", "text": prompt})
+        # Streaming, weil ein A4-HTML-Dokument lang wird und ein einzelner
+        # Request sonst in den HTTP-Timeout des SDK laufen kann.
+        with anthropic.Anthropic().messages.stream(
+            model="claude-opus-5", max_tokens=32000,
+            messages=[{"role": "user", "content": inhalt}],
+        ) as stream:
+            resp = stream.get_final_message()
+        if resp.stop_reason == "refusal":
+            raise RuntimeError("Anfrage wurde von der KI abgelehnt.")
+        return "".join(b.text for b in resp.content if b.type == "text")
+
+    if not claude_verfuegbar():
+        raise RuntimeError("Keine KI verfügbar – ANTHROPIC_API_KEY setzen oder Claude Code installieren.")
+    befehl = [CLAUDE_BIN, "-p", prompt, "--output-format", "text"]
+    if bild_pfad:                                  # CLI liest das Bild per Read-Tool
+        befehl[3:3] = ["--allowedTools", "Read"]
+    r = subprocess.run(befehl, capture_output=True, text=True, timeout=300)
+    return r.stdout or ""
+
+
+def design_via_claude(daten, stil="gruen"):
+    g = (daten.get("geschlecht") or "").strip().lower()
+    tn = "Teilnehmerin" if g == "w" else "Teilnehmer"
+    prompt = (CV_DESIGN_SYSTEM.replace("__STIL__", STILE.get(stil, STILE["gruen"])).replace("TEILNEHMER_TITEL", tn)
+              + "\n\nBewerber-Daten (JSON):\n" + json.dumps(daten, ensure_ascii=False, indent=1))
+    return _html_ausschneiden(_design_text(prompt))
 
 
 # --------------------------------------------- Vorlagen-Galerie (find-hire Reproduktion)
@@ -285,7 +335,7 @@ def lade_vorlagen():
 VORLAGEN = lade_vorlagen()
 VORLAGEN_BY_ID = {v["id"]: v for v in VORLAGEN}
 
-REPRO_PROMPT = """Lies zuerst das Referenzbild mit dem Read-Tool: __REF__
+REPRO_PROMPT = """Referenzbild: __REF__
 
 Im Bild siehst du ein fertiges CV-Design. Baue GENAU DIESES Design als EIN druckreifes A4-HTML-Dokument nach (HTML + eingebettetes <style>).
 
@@ -320,22 +370,13 @@ Bewerber-Daten (JSON):
 def design_from_reference(daten, ref_path):
     g = (daten.get("geschlecht") or "").strip().lower()
     tn = "Teilnehmerin" if g == "w" else "Teilnehmer"
-    prompt = (REPRO_PROMPT.replace("__REF__", ref_path).replace("TEILNEHMER_TITEL", tn)
+    # Über die API kommt das Referenzbild als Bild mit; die CLI liest es per Read-Tool
+    # vom Pfad. Der Platzhalter im Prompt wird entsprechend gefüllt.
+    ref_text = ("siehe beigefügtes Bild" if os.environ.get("ANTHROPIC_API_KEY")
+                else "lies es zuerst mit dem Read-Tool von " + ref_path)
+    prompt = (REPRO_PROMPT.replace("__REF__", ref_text).replace("TEILNEHMER_TITEL", tn)
               + json.dumps(daten, ensure_ascii=False, indent=1))
-    r = subprocess.run([CLAUDE_BIN, "-p", prompt, "--allowedTools", "Read", "--output-format", "text"],
-                       capture_output=True, text=True, timeout=300)
-    out = (r.stdout or "").strip()
-    if out.count("&lt;") > 10 and "<html" not in out.lower():
-        import html as _htmlmod
-        out = _htmlmod.unescape(out)
-    lo = out.lower()
-    i = lo.find("<!doctype")
-    if i < 0:
-        i = lo.find("<html")
-    j = lo.rfind("</html>")
-    if i >= 0 and j >= 0:
-        return out[i:j + 7]
-    raise RuntimeError("Claude hat kein gültiges HTML geliefert.")
+    return _html_ausschneiden(_design_text(prompt, bild_pfad=ref_path))
 
 
 # --------------------------------------------- KI: Rohdaten -> Formular-Daten
@@ -408,7 +449,13 @@ JSON_TEMPLATE = """{
 
 
 def claude_verfuegbar():
+    """Lokale Claude-CLI vorhanden (nutzt das Max-Abo, nur auf dem Mac)."""
     return os.path.exists(CLAUDE_BIN)
+
+
+def ki_verfuegbar():
+    """Irgendein KI-Weg nutzbar – API-Key (auch auf dem Server) oder lokale CLI."""
+    return bool(os.environ.get("ANTHROPIC_API_KEY")) or claude_verfuegbar()
 
 
 def ki_via_cli(text=None, file_paths=None):
@@ -476,7 +523,7 @@ _KEINE_KI = ("Keine KI verfügbar. Entweder Claude Code installiert lassen (nutz
 @app.route("/extract", methods=["POST"])
 def extract():
     """KI sortiert Rohdaten (Text/PDF/Bilder) -> JSON zum Vorausfüllen des Formulars."""
-    if not (os.environ.get("ANTHROPIC_API_KEY") or claude_verfuegbar()):
+    if not ki_verfuegbar():
         return jsonify({"error": _KEINE_KI}), 400
     text, files = _sammle_eingaben(request)
     if not text and not files:
@@ -490,7 +537,7 @@ def extract():
 @app.route("/generate-auto", methods=["POST"])
 def generate_auto():
     """EIN Klick: Rohdaten (Text/PDF/Bilder) -> KI sortiert -> fertige Excel zum Download."""
-    if not (os.environ.get("ANTHROPIC_API_KEY") or claude_verfuegbar()):
+    if not ki_verfuegbar():
         return jsonify({"error": _KEINE_KI}), 400
     text, files = _sammle_eingaben(request)
     if not text and not files:
@@ -578,11 +625,11 @@ def cv_pdf():
     if design in DESIGNS:  # feste, schnelle HTML-Vorlage
         beruf = [improfy_block(daten)] + (daten.get("berufserfahrung") or [])
         html = render_template(DESIGNS[design], d=daten, beruf=beruf, foto=foto_uri, niveau=_niveau_txt, logo=LOGO_URI)
-    elif design in VORLAGEN_BY_ID and claude_verfuegbar():  # find-hire Vorlage 1:1 nachbauen
+    elif design in VORLAGEN_BY_ID and ki_verfuegbar():  # find-hire Vorlage 1:1 nachbauen
         ref = os.path.join(VORLAGEN_DIR, VORLAGEN_BY_ID[design]["ref"])
         html = design_from_reference(daten, ref)
         html = html.replace("__FOTO__", foto_uri or PLACEHOLDER_FOTO)
-    elif claude_verfuegbar():  # weitere Stile werden von Claude generiert
+    elif ki_verfuegbar():  # weitere Stile werden von Claude generiert
         html = design_via_claude(daten, design)
         html = html.replace("__FOTO__", foto_uri or PLACEHOLDER_FOTO)
     else:
