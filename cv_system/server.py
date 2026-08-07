@@ -378,7 +378,7 @@ def ki_extrahiere(text=None, files=None):
         prompt += "\n\nZusätzliche Angaben (bitte mit einbeziehen):\n" + text
     content.append({"type": "text", "text": prompt})
     resp = client.messages.create(
-        model="claude-opus-4-8", max_tokens=8000, system=KI_SYSTEM,
+        model="claude-opus-5", max_tokens=16000, system=KI_SYSTEM,
         output_config={"format": {"type": "json_schema", "schema": CV_JSON_SCHEMA}},
         messages=[{"role": "user", "content": content}],
     )

@@ -16,6 +16,9 @@ cv_system/somayeh_dastmozd.json
 # Vorlagen sind KEINE Kundendaten -> Ausnahme von *.xlsx
 !cv_system/vorlagen/Muster-Vorlage.xlsx
 
+# === Vercel ===
+.vercel/
+
 # === Backups / Temporäres ===
 *.zip
 .DS_Store
