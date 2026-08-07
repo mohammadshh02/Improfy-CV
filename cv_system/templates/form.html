@@ -269,51 +269,12 @@ function addRow(containerId, tplId){
 renderFileList();
 
 // ---- Schnell-Modus: Sammel-Liste mehrerer Dateien ----
-// Serverless-Hosting (Vercel) begrenzt eine Anfrage auf 4,5 MB. Handy-Fotos
-// liegen oft darüber, deshalb werden Bilder schon im Browser verkleinert.
-// Nebeneffekt: spart API-Kosten, die Vision-Abrechnung hängt an der Bildgröße.
-const MAX_KANTE = 1600;      // längste Bildkante in Pixel
-const JPEG_QUALITAET = 0.82;
-
-function verkleinereBild(datei){
-  return new Promise(resolve=>{
-    if(!datei.type.startsWith('image/')) return resolve(datei);   // PDFs unangetastet
-    const url=URL.createObjectURL(datei);
-    const img=new Image();
-    img.onload=()=>{
-      URL.revokeObjectURL(url);
-      const faktor=Math.min(1, MAX_KANTE/Math.max(img.width, img.height));
-      if(faktor===1 && datei.size<800*1024) return resolve(datei);  // klein genug
-      const cv=document.createElement('canvas');
-      cv.width=Math.round(img.width*faktor); cv.height=Math.round(img.height*faktor);
-      cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
-      cv.toBlob(b=>{
-        if(!b || b.size>=datei.size) return resolve(datei);   // Verkleinern brachte nichts
-        resolve(new File([b], datei.name.replace(/\.[^.]+$/,'')+'.jpg', {type:'image/jpeg'}));
-      },'image/jpeg',JPEG_QUALITAET);
-    };
-    img.onerror=()=>{ URL.revokeObjectURL(url); resolve(datei); };  // kein Bild lesbar -> Original
-    img.src=url;
-  });
-}
-
-async function addFiles(input){
-  const roh=[...input.files];
+// Dateien werden unverändert in Originalqualität hochgeladen. Der eigene
+// Server hat kein Upload-Limit (nginx: client_max_body_size 100M).
+function addFiles(input){
+  for(const f of input.files) sammelDateien.push(f);
   input.value='';   // erlaubt erneutes Hinzufügen derselben Datei
-  const c=document.getElementById('fileList');
-  if(roh.some(f=>f.type.startsWith('image/'))) c.innerHTML='<span class="hint">⏳ Bilder werden verkleinert…</span>';
-  for(const f of roh) sammelDateien.push(await verkleinereBild(f));
   renderFileList(); syncFotoHint();
-}
-
-// Gesamtgröße prüfen, bevor der Server sie mit einer unlesbaren Meldung ablehnt
-const LIMIT_BYTES = 4.2*1024*1024;   // etwas unter Vercels 4,5 MB
-function _zuGross(){
-  const summe=sammelDateien.reduce((s,f)=>s+f.size,0);
-  if(summe<=LIMIT_BYTES) return null;
-  const mb=(summe/1024/1024).toFixed(1);
-  return 'Die Dateien sind zusammen '+mb+' MB groß, erlaubt sind 4,2 MB. '
-       + 'Bitte ein PDF weglassen oder in kleinere Teile aufteilen.';
 }
 function removeFile(i){ sammelDateien.splice(i,1); renderFileList(); syncFotoHint(); }
 function renderFileList(){
@@ -374,7 +335,6 @@ async function _leseAntwort(r){
 }
 
 async function autoFill(){
-  const gross=_zuGross(); if(gross){ _done('⚠ '+gross); return; }
   _busy('⏳ KI liest & sortiert die Infos… (einen Moment, kann bis ~30 s dauern)');
   try{
     const r=await fetch('/extract',{method:'POST',body:_formData()});
@@ -386,7 +346,6 @@ async function autoFill(){
 }
 
 async function directCreate(){
-  const gross=_zuGross(); if(gross){ _done('⚠ '+gross); return; }
   _busy('⏳ KI liest & erstellt die Excel… (einen Moment, kann bis ~30 s dauern)');
   try{
     const r=await fetch('/generate-auto',{method:'POST',body:_formData()});
