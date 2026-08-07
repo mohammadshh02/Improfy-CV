@@ -189,6 +189,32 @@ def _niveau_txt(sterne):
             3: "Grundkenntnisse", 2: "Grundkenntnisse", 1: "Grundkenntnisse"}.get(int(sterne or 0), "Gute Kenntnisse")
 
 
+# Ein Bewerbungsfoto wird im Layout etwa 45 mm breit gedruckt. 1000 px lange
+# Kante sind dafür reichlich (~560 dpi). Ohne diese Begrenzung landet ein
+# Handy-Foto in voller Auflösung im PDF: Datei wird 5–6 MB statt ~300 KB,
+# lässt sich kaum per Mail verschicken und bringt manche Betrachter ins Straucheln.
+FOTO_MAX_KANTE = 1000
+
+
+def _foto_data_uri(rohdaten, mimetype=None):
+    """Foto auf Druckgröße bringen und als data:-URI zurückgeben."""
+    try:
+        from PIL import Image
+        bild = Image.open(io.BytesIO(rohdaten))
+        bild.load()
+        if max(bild.size) > FOTO_MAX_KANTE:
+            bild.thumbnail((FOTO_MAX_KANTE, FOTO_MAX_KANTE), Image.LANCZOS)
+        if bild.mode not in ("RGB", "L"):
+            bild = bild.convert("RGB")          # PNG mit Alpha -> JPEG-tauglich
+        puffer = io.BytesIO()
+        bild.save(puffer, "JPEG", quality=85, optimize=True, progressive=True)
+        if puffer.tell() < len(rohdaten):
+            return "data:image/jpeg;base64," + base64.b64encode(puffer.getvalue()).decode("ascii")
+    except Exception:
+        pass                                     # Pillow fehlt oder Format unbekannt
+    return f"data:{mimetype or 'image/jpeg'};base64," + base64.b64encode(rohdaten).decode("ascii")
+
+
 def html_to_pdf(html):
     tmpd = tempfile.mkdtemp()
     hp = os.path.join(tmpd, "cv.html")
@@ -621,8 +647,7 @@ def cv_pdf():
     foto_uri = None
     foto = request.files.get("foto")
     if foto and foto.filename:
-        mt = (foto.mimetype or "image/jpeg")
-        foto_uri = f"data:{mt};base64," + base64.b64encode(foto.read()).decode("ascii")
+        foto_uri = _foto_data_uri(foto.read(), foto.mimetype)
 
     design = request.form.get("design") or "gruen"
     if design in DESIGNS:  # feste, schnelle HTML-Vorlage
