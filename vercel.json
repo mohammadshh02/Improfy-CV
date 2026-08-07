@@ -2,7 +2,7 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 300,
-      "includeFiles": "{templates,static,vorlagen}/**"
+      "includeFiles": "cv_system/{templates,static,vorlagen}/**"
     }
   },
   "rewrites": [
