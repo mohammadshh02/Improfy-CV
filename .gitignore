@@ -1,0 +1,25 @@
+# === Secrets — NIEMALS committen ===
+.env
+*.env
+!.env.example
+
+# === Kundendaten (DSGVO) — bleiben lokal ===
+ausgabe/
+*.xlsx
+cv_system/beispiel_sahar.json
+cv_system/christian_holl.json
+cv_system/farnam_foroutan.json
+cv_system/omolbanin_rezazadeh.json
+cv_system/sahar_holl.json
+cv_system/somayeh_dastmozd.json
+
+# Vorlagen sind KEINE Kundendaten -> Ausnahme von *.xlsx
+!cv_system/vorlagen/Muster-Vorlage.xlsx
+
+# === Backups / Temporäres ===
+*.zip
+.DS_Store
+__pycache__/
+*.pyc
+venv/
+.venv/

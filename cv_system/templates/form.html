@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Improfy – Lebenslauf erstellen</title>
+<style>
+  :root{
+    --navy:#1e293b; --muted:#64748b; --green:#12a150; --green-d:#0e7d3f;
+    --mint:#eafaf0; --line:#e6e9ef; --bg:#f5f7fa; --card:#fff;
+    --radius:14px; --shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04);
+  }
+  *{ box-sizing:border-box; }
+  html{ -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+  body{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    margin:0; background:var(--bg); color:var(--navy); font-size:15px; line-height:1.5; }
+
+  /* Header */
+  header{ background:#fff; padding:14px 28px; display:flex; align-items:center; gap:16px;
+    border-bottom:1px solid var(--line); position:sticky; top:0; z-index:20; }
+  header::after{ content:""; position:absolute; left:0; right:0; bottom:-1px; height:3px; background:var(--green); }
+  header img.logo{ height:34px; width:auto; }
+  header .tag{ font-weight:700; font-size:16px; letter-spacing:-.01em; }
+  header .sub{ font-size:12.5px; color:var(--muted); margin-top:1px; }
+
+  /* Layout */
+  form{ max-width:800px; margin:28px auto; padding:0 20px 90px; }
+
+  /* Cards */
+  fieldset{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    margin:0 0 20px; padding:22px 24px; box-shadow:var(--shadow); }
+  legend{ font-weight:700; font-size:15.5px; letter-spacing:-.01em; padding:0 10px; color:var(--navy); }
+
+  label{ display:block; font-size:12.5px; font-weight:600; color:#475569; margin:14px 0 6px; }
+  input[type=text],input[type=date],input[type=email],select,textarea{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px;
+    font-size:14px; font-family:inherit; color:var(--navy); background:#fff;
+    transition:border-color .15s, box-shadow .15s; }
+  input::placeholder,textarea::placeholder{ color:#9aa4b2; }
+  input:focus,textarea:focus,select:focus{ outline:none; border-color:var(--green);
+    box-shadow:0 0 0 3px rgba(18,161,80,.14); }
+  textarea{ resize:vertical; line-height:1.55; }
+  select{ appearance:none; -webkit-appearance:none; padding-right:34px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 12px center; }
+
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:0 18px; }
+  .grid3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 18px; }
+  @media(max-width:560px){ .grid2,.grid3{ grid-template-columns:1fr; } }
+
+  /* Dynamische Zeilen */
+  .row{ border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:12px 0;
+    background:#fbfcfe; position:relative; }
+  .row .del{ position:absolute; top:10px; right:10px; width:26px; height:26px; line-height:24px; text-align:center;
+    background:#fff; color:#94a3b8; border:1px solid var(--line); border-radius:8px; cursor:pointer;
+    font-size:13px; padding:0; transition:.15s; }
+  .row .del:hover{ color:#ef4444; border-color:#fecaca; background:#fef2f2; }
+
+  .addbtn{ background:var(--mint); color:var(--green-d); border:1px solid #bfe8cd; border-radius:999px;
+    padding:9px 16px; cursor:pointer; font-weight:600; font-size:13px; transition:.15s; }
+  .addbtn:hover{ background:#dcf5e5; }
+
+  .hint{ font-size:12.5px; color:var(--muted); font-weight:400; line-height:1.55; }
+  .inline{ display:flex; align-items:center; gap:12px; margin-top:14px; flex-wrap:wrap; }
+  .inline label{ margin:0; font-size:13.5px; color:var(--navy); }
+  input[type=checkbox]{ width:17px; height:17px; accent-color:var(--green); }
+  input[type=file]{ font-size:13px; color:var(--muted); }
+
+  .submit{ background:var(--green); color:#fff; border:none; border-radius:12px; padding:15px 24px;
+    font-size:15.5px; font-weight:700; cursor:pointer; width:100%; margin-top:6px;
+    box-shadow:0 2px 8px rgba(18,161,80,.28); transition:transform .12s, background .15s; }
+  .submit:hover{ background:var(--green-d); transform:translateY(-1px); }
+  .submit:active{ transform:translateY(0); }
+  .submit:disabled{ opacity:.55; cursor:default; transform:none; box-shadow:none; }
+
+  footer{ text-align:center; color:#94a3b8; font-size:12px; padding:4px 0 40px; }
+
+  .fb{ display:none; border-radius:12px; padding:16px 18px; margin:0 0 20px; font-size:14px; box-shadow:var(--shadow); }
+  .fb.ok{ background:var(--mint); border:1px solid #bfe8cd; color:var(--green-d); }
+  .fb.warn{ background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; }
+  .fb ul{ margin:8px 0 0; padding-left:20px; } .fb li{ margin:2px 0; }
+
+  /* In-App-Vorschau der fertigen CV */
+  .preview{ display:none; background:#fff; border:1px solid var(--line); border-radius:var(--radius);
+    padding:24px 26px; margin:0 0 20px; box-shadow:var(--shadow); }
+  .preview .dlbar{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:16px;
+    padding-bottom:16px; border-bottom:1px solid var(--line); }
+  .preview h2{ margin:0; font-size:21px; letter-spacing:-.01em; }
+  .preview .job{ color:var(--green-d); font-weight:600; margin-top:2px; }
+  .preview .contact{ color:var(--muted); font-size:13px; margin-top:3px; }
+  .preview h3{ font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);
+    margin:20px 0 8px; border-bottom:1px solid var(--line); padding-bottom:5px; font-weight:700; }
+  .preview .exp{ margin:9px 0; }
+  .preview .exp .top{ font-weight:600; font-size:14.5px; }
+  .preview .exp .meta{ color:var(--muted); font-weight:400; font-size:13px; }
+  .preview .exp ul{ margin:5px 0 0 18px; padding:0; } .preview .exp li{ margin:2px 0; font-size:13.5px; }
+  .preview .stars{ color:var(--green); letter-spacing:1px; }
+  .preview .um{ white-space:pre-wrap; font-size:13.5px; line-height:1.6; }
+
+  /* Schnell-Modus als großer Hero-Bereich */
+  .hero{ padding:34px 38px; border-width:2px;
+    box-shadow:0 8px 30px rgba(18,161,80,.10), 0 2px 6px rgba(16,24,40,.05); }
+  .hero legend{ font-size:24px; font-weight:800; }
+  .hero .hint{ font-size:15.5px; line-height:1.65; }
+  .hero textarea{ min-height:240px; font-size:16px; padding:16px 18px; border-radius:12px; margin-top:6px; }
+  .hero .inline{ gap:16px; margin-top:20px; }
+  .hero .submit{ width:auto; padding:18px 36px; font-size:19px; border-radius:14px;
+    box-shadow:0 6px 16px rgba(18,161,80,.32); }
+  .hero .addbtn{ padding:15px 26px; font-size:15px; }
+  .hero input[type=file]{ font-size:14px; }
+  @media(max-width:560px){ .hero{ padding:24px 20px; } .hero .submit,.hero .addbtn{ width:100%; } }
+</style>
+</head>
+<body>
+<header>
+  <img class="logo" src="/static/improfy-logo.png" alt="Improfy">
+  <div>
+    <div class="tag">Wir bringen Sie zurück in den Job</div>
+    <div class="sub">📄 Lebenslauf-Generator – aus Infos, PDF, Screenshot oder Foto in Sekunden</div>
+  </div>
+  <a href="/figma" style="margin-left:auto;color:var(--green-d);font-weight:700;text-decoration:none;font-size:14px">🎨 Figma-Vorlagen →</a>
+</header>
+
+<form method="post" action="/generate" id="cvform">
+  <div id="preview" class="preview"></div>
+  <div id="feedback" class="fb"></div>
+  <fieldset class="hero" style="background:linear-gradient(#eefaf2,#fff); border-color:#bfe8cd;">
+    <legend>🪄 Schnell-Modus – einfach reinwerfen</legend>
+    <p class="hint">Du musst <b>nicht</b> alles ausfüllen. Wirf einen <b>Lebenslauf oder irgendwas Unsortiertes</b> rein –
+      als Text, <b>PDF</b>, <b>Screenshot oder Foto</b> (Schrift auf Bildern wird gelesen). Optional zusätzliche Infos ergänzen.
+      Dann:<br>
+      • <b>⚡ Direkt Excel erstellen</b> → in Sekunden die fertige Datei (wie bei Farnam), oder<br>
+      • <b>🪄 Ins Formular</b> → erst prüfen/ergänzen, dann unten „Excel erstellen".</p>
+    <textarea id="rohtext" rows="5" placeholder="Optional: hier zusätzliche/unsortierte Infos reinschreiben (Reihenfolge egal)…"></textarea>
+    <div style="margin-top:12px;">
+      <input type="file" id="dateien" accept="application/pdf,image/*" multiple style="display:none" onchange="addFiles(this)">
+      <button type="button" class="addbtn" onclick="document.getElementById('dateien').click()">📎 Dateien hinzufügen (PDF · Foto · Screenshot)</button>
+      <span class="hint" style="margin-left:8px">beliebig viele – alle werden einbezogen</span>
+      <div id="fileList" style="margin-top:10px"></div>
+    </div>
+    <div class="inline" style="margin-top:14px; flex-wrap:wrap; gap:12px;">
+      <button type="button" class="submit" style="width:auto; margin:0;" id="btnAuto" onclick="directCreate()">⚡ Direkt Excel erstellen</button>
+      <button type="button" class="addbtn" id="btnExtract" onclick="autoFill()">🪄 Ins Formular übernehmen</button>
+      <span id="extractStatus" class="hint"></span>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Grunddaten</legend>
+    <div class="grid2">
+      <div><label>Kunde von</label><input type="text" name="kunde_von" value="{{ kunde_von }}"></div>
+      <div><label>Angestrebter Job</label><input type="text" name="angestrebter_job" placeholder="z.B. Ausbildung zum Lageristen"></div>
+      <div><label>Vorname</label><input type="text" name="vorname" required></div>
+      <div><label>Nachname</label><input type="text" name="nachname" required></div>
+      <div><label>Geschlecht <span class="hint">(für „Teilnehmer/in")</span></label>
+        <select name="geschlecht"><option value="">–</option><option value="w">weiblich</option><option value="m">männlich</option><option value="d">divers</option></select></div>
+      <div><label>Geburtsdatum <span class="hint">(TT.MM.JJJJ)</span></label><input type="text" name="geburtsdatum" placeholder="05.06.1975"></div>
+      <div><label>Mobil</label><input type="text" name="mobil"></div>
+      <div><label>E-Mail</label><input type="text" name="email"></div>
+      <div style="grid-column:1/3"><label>Adresse <span class="hint">(Straße Nr, PLZ Ort)</span></label><input type="text" name="adresse"></div>
+    </div>
+    <div class="inline">
+      <input type="checkbox" name="fs_vorhanden" id="fs_vorhanden"><label for="fs_vorhanden">Führerschein vorhanden</label>
+      <input type="text" name="fs_klasse" placeholder="Klasse (z.B. B)" style="width:150px">
+      <input type="checkbox" name="fs_eu" id="fs_eu" checked><label for="fs_eu">EU/DE-Führerschein</label>
+    </div>
+    <label style="margin-top:16px">📷 Foto des Kunden <span class="hint">(für den designten Lebenslauf – optional)</span></label>
+    <input type="file" id="foto" accept="image/*" style="display:none" onchange="showFoto(this)">
+    <div><button type="button" class="addbtn" onclick="document.getElementById('foto').click()">📷 Foto auswählen</button></div>
+    <div id="fotoPreview"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Berufserfahrung <span class="hint">(neueste zuerst)</span></legend>
+    <div id="beruf"></div>
+    <button type="button" class="addbtn" onclick="addRow('beruf','tpl-beruf')">+ Station hinzufügen</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Bildung</legend>
+    <div id="bildung"></div>
+    <button type="button" class="addbtn" onclick="addRow('bildung','tpl-bildung')">+ Abschluss hinzufügen</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Zusatzqualifikationen</legend>
+    <textarea name="zusatzqual" rows="3" placeholder="Eine pro Zeile, z.B. §34a Unterrichtung (2022)"></textarea>
+  </fieldset>
+
+  <fieldset>
+    <legend>Sprachen <span class="hint">(Deutsch zuerst)</span></legend>
+    <div id="sprachen"></div>
+    <button type="button" class="addbtn" onclick="addRow('sprachen','tpl-sprache')">+ Sprache hinzufügen</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>EDV / IT</legend>
+    <div id="edv"></div>
+    <button type="button" class="addbtn" onclick="addRow('edv','tpl-edv')">+ Programm hinzufügen</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Soft Skills</legend>
+    <div id="ss"></div>
+    <button type="button" class="addbtn" onclick="addRow('ss','tpl-ss')">+ Soft Skill hinzufügen</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Über mich & Hobbys</legend>
+    <label>Über-mich-Text</label>
+    <textarea name="ueber_mich" rows="8" placeholder="Guten Tag, mein Name ist … Mit freundlichen Grüßen …"></textarea>
+    <label style="margin-top:12px">Hobbys</label>
+    <input type="text" name="hobbys">
+  </fieldset>
+
+  <button type="submit" class="submit">📥 Excel erstellen &amp; herunterladen</button>
+</form>
+<footer>Improfy · Zugelassener Bildungsträger nach AZAV · „Wir bringen Sie zurück in den Job"</footer>
+
+<!-- Vorlagen für dynamische Zeilen -->
+<template id="tpl-beruf"><div class="row"><button type="button" class="del" onclick="this.parentNode.remove()">✕</button>
+  <div class="grid2">
+    <div><label>Zeitraum <span class="hint">(mm.yyyy - mm.yyyy)</span></label><input type="text" name="beruf_zeitraum[]" placeholder="seit 2022"></div>
+    <div><label>Firma / Ort</label><input type="text" name="beruf_firma[]"></div>
+  </div>
+  <label>Jobtitel</label><input type="text" name="beruf_jobtitel[]">
+  <label>Tätigkeiten <span class="hint">(2–4, eine pro Zeile)</span></label><textarea name="beruf_taet[]" rows="3"></textarea>
+</div></template>
+
+<template id="tpl-bildung"><div class="row"><button type="button" class="del" onclick="this.parentNode.remove()">✕</button>
+  <div class="grid2">
+    <div><label>Zeitraum</label><input type="text" name="bild_zeitraum[]"></div>
+    <div><label>Note <span class="hint">(optional)</span></label><input type="text" name="bild_note[]"></div>
+  </div>
+  <label>Abschluss / Art</label><input type="text" name="bild_abschluss[]">
+  <label>Institution (Schule/Uni/Betrieb + Ort)</label><input type="text" name="bild_institution[]">
+</div></template>
+
+<template id="tpl-sprache"><div class="row"><button type="button" class="del" onclick="this.parentNode.remove()">✕</button>
+  <div class="grid2">
+    <div><label>Sprache</label><input type="text" name="spr_sprache[]" placeholder="DEUTSCH"></div>
+    <div><label>Niveau</label><input type="text" name="spr_niveau[]" placeholder="Muttersprache / gute Kenntnisse"></div>
+  </div>
+</div></template>
+
+<template id="tpl-edv"><div class="row"><button type="button" class="del" onclick="this.parentNode.remove()">✕</button>
+  <div class="grid2">
+    <div><label>Programm</label><input type="text" name="edv_programm[]" placeholder="MS Office"></div>
+    <div><label>Sterne (1–5)</label><input type="text" name="edv_sterne[]" placeholder="4"></div>
+  </div>
+</div></template>
+
+<template id="tpl-ss"><div class="row"><button type="button" class="del" onclick="this.parentNode.remove()">✕</button>
+  <div class="grid2">
+    <div><label>Eigenschaft</label><input type="text" name="ss_eigenschaft[]" placeholder="Zuverlässigkeit"></div>
+    <div><label>Sterne (1–5)</label><input type="text" name="ss_sterne[]" placeholder="5"></div>
+  </div>
+</div></template>
+
+<script>
+let sammelDateien=[];   // ganz oben deklarieren (wird beim Start schon benutzt)
+function addRow(containerId, tplId){
+  const tpl = document.getElementById(tplId);
+  document.getElementById(containerId).appendChild(tpl.content.cloneNode(true));
+}
+// Startzeilen anlegen
+['beruf|tpl-beruf','beruf|tpl-beruf','bildung|tpl-bildung','sprachen|tpl-sprache',
+ 'edv|tpl-edv','ss|tpl-ss'].forEach(x=>{const [c,t]=x.split('|');addRow(c,t);});
+renderFileList();
+
+// ---- Schnell-Modus: Sammel-Liste mehrerer Dateien ----
+function addFiles(input){
+  for(const f of input.files) sammelDateien.push(f);
+  input.value='';   // erlaubt erneutes Hinzufügen derselben Datei
+  renderFileList(); syncFotoHint();
+}
+function removeFile(i){ sammelDateien.splice(i,1); renderFileList(); syncFotoHint(); }
+function renderFileList(){
+  const c=document.getElementById('fileList');
+  if(!sammelDateien.length){ c.innerHTML='<span class="hint">Noch keine Dateien ausgewählt.</span>'; return; }
+  let kb=f=>Math.max(1,Math.round(f.size/1024));
+  c.innerHTML='<div style="font-weight:700;font-size:12.5px;color:var(--green-d);margin-bottom:8px">✓ Hochgeladen ('+sammelDateien.length+'):</div>'
+    + sammelDateien.map((f,i)=>
+    '<span style="display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:7px 12px;margin:0 8px 8px 0;font-size:12.5px">'
+    +(f.type.startsWith("image/")?"🖼️":"📄")+' <b>'+_esc(f.name)+'</b> <span class="hint">('+kb(f)+' KB)</span>'
+    +' <span onclick="removeFile('+i+')" title="entfernen" style="cursor:pointer;color:#ef4444;font-weight:700;margin-left:2px">✕</span></span>').join('');
+}
+function _formData(){
+  const fd=new FormData();
+  fd.append('rohtext', document.getElementById('rohtext').value);
+  for(const f of sammelDateien) fd.append('dateien', f);
+  return fd;
+}
+// ---- Kunden-Foto: Vorschau im Formular ----
+function showFoto(input){
+  const p=document.getElementById('fotoPreview'); const f=input.files[0];
+  if(!f){ p.innerHTML=''; return; }
+  const url=URL.createObjectURL(f);
+  p.innerHTML='<div style="display:inline-flex;align-items:center;gap:12px;margin-top:10px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px">'
+    +'<img src="'+url+'" style="width:60px;height:74px;object-fit:cover;border-radius:8px;border:2px solid var(--green)">'
+    +'<span style="font-size:12.5px"><b>'+_esc(f.name)+'</b><br><span style="color:var(--green-d);font-weight:600">✓ Foto gespeichert – wird im Design verwendet</span></span>'
+    +'<span onclick="clearFoto()" title="entfernen" style="cursor:pointer;color:#ef4444;font-weight:700;margin-left:4px">✕</span></div>';
+}
+function clearFoto(){ document.getElementById('foto').value=''; document.getElementById('fotoPreview').innerHTML=''; syncFotoHint(); }
+// ---- Foto auflösen: eigenes Foto-Feld ODER erstes Bild aus dem Schnell-Upload ----
+function _firstImage(){ for(const f of sammelDateien){ if(f.type && f.type.startsWith('image/')) return f; } return null; }
+function _resolveFoto(){ const inp=document.getElementById('foto'); if(inp && inp.files && inp.files[0]) return inp.files[0]; return _firstImage(); }
+function syncFotoHint(){
+  const inp=document.getElementById('foto'); const p=document.getElementById('fotoPreview'); if(!p) return;
+  if(inp && inp.files && inp.files[0]) return;            // eigenes Foto gesetzt -> showFoto zeigt es
+  const img=_firstImage();
+  if(img){ const url=URL.createObjectURL(img);
+    p.innerHTML='<div style="display:inline-flex;align-items:center;gap:12px;margin-top:10px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px">'
+      +'<img src="'+url+'" style="width:60px;height:74px;object-fit:cover;border-radius:8px;border:2px solid var(--green)">'
+      +'<span style="font-size:12.5px"><b>'+_esc(img.name)+'</b><br><span style="color:var(--green-d);font-weight:600">✓ Wird als Foto im Design verwendet</span><br><span class="hint">Anderes Foto? → „📷 Foto auswählen"</span></span></div>';
+  } else { p.innerHTML=''; }
+}
+function _busy(msg){ document.getElementById('extractStatus').textContent=msg;
+  document.getElementById('btnAuto').disabled=true; document.getElementById('btnExtract').disabled=true; }
+function _done(msg){ document.getElementById('extractStatus').textContent=msg;
+  document.getElementById('btnAuto').disabled=false; document.getElementById('btnExtract').disabled=false; }
+
+async function autoFill(){
+  _busy('⏳ KI liest & sortiert die Infos… (einen Moment, kann bis ~30 s dauern)');
+  try{
+    const r=await fetch('/extract',{method:'POST',body:_formData()});
+    const j=await r.json();
+    if(!r.ok){ _done('⚠ '+(j.error||'Fehler')); return; }
+    fillForm(j);
+    _done('✓ Ins Formular übernommen – bitte prüfen und ergänzen.');
+  }catch(e){ _done('⚠ '+e); }
+}
+
+async function directCreate(){
+  _busy('⏳ KI liest & erstellt die Excel… (einen Moment, kann bis ~30 s dauern)');
+  try{
+    const r=await fetch('/generate-auto',{method:'POST',body:_formData()});
+    const j=await r.json();
+    if(!r.ok){ _done('⚠ '+(j.error||'Fehler')); return; }
+    handleResult(j);
+    _done('✓ Fertig: '+j.filename);
+  }catch(e){ _done('⚠ '+e); }
+}
+
+// ---- Ergebnis: In-App-Vorschau + Download + Feedback ----
+let _fileB64=null, _fileName=null, _lastDaten=null;
+function reDownload(){ if(_fileB64) downloadB64(_fileB64,_fileName); }
+async function makeCV(){
+  if(!_lastDaten) return;
+  const btn=document.getElementById('btnCV');
+  const fd=new FormData();
+  fd.append('daten', JSON.stringify(_lastDaten));
+  const dsel=document.getElementById('design'); const design=dsel?dsel.value:'gruen';
+  fd.append('design', design);
+  const foto=_resolveFoto(); if(foto) fd.append('foto', foto);
+  var schnell = ['pro','gruen','clean','blob'].indexOf(design) !== -1;
+  if(btn){ btn.disabled=true; btn.textContent = schnell ? '⏳ PDF wird erstellt…' : '⏳ Claude baut dein Design… (~1 Min)'; }
+  try{
+    const r=await fetch('/cv-pdf',{method:'POST',body:fd});
+    const ct=r.headers.get('content-type')||'';
+    if(ct.includes('application/json')){ const j=await r.json(); alert(j.error||'Fehler'); }
+    else{
+      const blob=await r.blob();
+      let fn=((_lastDaten.vorname||'')+'_'+(_lastDaten.nachname||'')).replace(/^_|_$/g,'')+'_Lebenslauf.pdf';
+      const cd=r.headers.get('content-disposition')||''; const m=cd.match(/filename\*?=(?:UTF-8'')?"?([^\";]+)"?/i); if(m) fn=decodeURIComponent(m[1]);
+      const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=fn; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    }
+  }catch(e){ alert('Fehler: '+e); }
+  if(btn){ btn.disabled=false; btn.textContent='🎨 Designter Lebenslauf (PDF)'; }
+}
+// ---- Design-Galerie ----
+var VORLAGEN = {{ vorlagen|tojson }};
+var SCHNELL = [
+  {id:'pro', label:'Improfy Profi ★', tag:'Referenz', c1:'#8CC63F', c2:'#ffffff'},
+  {id:'gruen', label:'Improfy Original', tag:'schnell', c1:'#0f5c3f', c2:'#8DC63F'},
+  {id:'clean', label:'Improfy Clean', tag:'schnell', c1:'#ffffff', c2:'#0f5c3f'},
+  {id:'blob', label:'Improfy Blob', tag:'schnell', c1:'#eef6ef', c2:'#8DC63F'},
+  {id:'modern_blau', label:'Modern Blau', tag:'Claude', c1:'#0e7490', c2:'#67e8f9'},
+  {id:'klassisch', label:'Klassisch', tag:'Claude', c1:'#f8fafc', c2:'#1d3b8b'},
+  {id:'elegant', label:'Elegant', tag:'Claude', c1:'#1f2937', c2:'#0d9488'}
+];
+function toggleGalerie(){
+  var g=document.getElementById('galerie');
+  if(g.style.display==='none'){ renderGalerie(); g.style.display='block'; g.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+  else g.style.display='none';
+}
+function _tile(id,label,tag,inner){
+  var cur=document.getElementById('design'); var sel=cur&&cur.value===id;
+  return '<div onclick="selectDesign(\''+id+'\',\''+label.replace(/'/g,"")+'\')" '
+    +'style="cursor:pointer;border:3px solid '+(sel?'#12a150':'#e6e9ef')+';border-radius:12px;overflow:hidden;background:#fff;transition:.15s;box-shadow:0 1px 3px rgba(16,24,40,.06)">'
+    +inner
+    +'<div style="padding:7px 9px;font-size:12px"><b>'+label+'</b> <span style="color:#94a3b8">· '+tag+'</span></div></div>';
+}
+function renderGalerie(){
+  var h='<div style="margin:6px 0 10px;font-size:13px;color:#64748b">Klick ein Design an – der Coach kann pro Kunde frei wählen. '
+      +'<b>Schnell</b> = sofort (~3 s), <b>Claude/Vorlage</b> = originalgetreu nachgebaut (~1 Min).</div>';
+  h+='<div style="font-weight:800;color:#0f5c3f;margin:8px 0 6px">⚡ Improfy & Schnell-Stile</div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">';
+  SCHNELL.forEach(function(d){
+    var thumb='<div style="height:150px;background:'+d.c1+';position:relative">'
+      +'<div style="position:absolute;top:0;left:0;right:0;height:46px;background:'+d.c2+'"></div>'
+      +'<div style="position:absolute;top:58px;left:12px;width:44px;height:52px;border-radius:8px;background:#cbd5e1"></div>'
+      +'<div style="position:absolute;top:64px;left:66px;right:12px;height:8px;background:#cbd5e1;border-radius:4px"></div>'
+      +'<div style="position:absolute;top:80px;left:66px;right:24px;height:6px;background:#e2e8f0;border-radius:4px"></div></div>';
+    h+=_tile(d.id,d.label,d.tag,thumb);
+  });
+  h+='</div>';
+  h+='<div style="font-weight:800;color:#0f5c3f;margin:16px 0 6px">🖼️ Profi-Vorlagen (find-hire · Originalfarben)</div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">';
+  VORLAGEN.forEach(function(v){
+    var thumb='<div style="height:190px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;overflow:hidden">'
+      +'<img src="/static/vorlagen/'+v.thumb+'" style="max-width:100%;max-height:100%">' +'</div>';
+    h+=_tile(v.id,v.label,'Vorlage',thumb);
+  });
+  h+='</div>';
+  document.getElementById('galerie').innerHTML=h;
+}
+function selectDesign(id,label){
+  var inp=document.getElementById('design'); if(inp) inp.value=id;
+  var lab=document.getElementById('designLabel'); if(lab) lab.textContent='Gewählt: '+label;
+  renderGalerie();
+  var btn=document.getElementById('btnCV'); if(btn) btn.scrollIntoView({behavior:'smooth',block:'center'});
+}
+function downloadB64(b64, fn){
+  const bin=atob(b64); const arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  const blob=new Blob([arr],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download=fn||'Lebenslauf.xlsx'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+function handleResult(j){
+  _fileB64=j.file_b64; _fileName=j.filename; _lastDaten=j.daten||{};
+  renderPreview(j.daten||{}, j.filename);
+  showFeedback(j.fehlend, j.filename);
+  document.getElementById('preview').scrollIntoView({behavior:'smooth', block:'start'});
+}
+function _esc(s){ return (s==null?'':''+s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function _stars(n){ n=Math.max(0,Math.min(5,parseInt(n)||0)); return '★'.repeat(n)+'☆'.repeat(5-n); }
+function renderPreview(d, filename){
+  const P=document.getElementById('preview');
+  let h='<div class="dlbar">'
+        +'<button type="button" id="btnCV" class="submit" style="width:auto;margin:0" onclick="makeCV()">🎨 Designter Lebenslauf (PDF)</button>'
+        +'<input type="hidden" id="design" value="pro">'
+        +'<button type="button" class="addbtn" onclick="toggleGalerie()">🖼️ Design wählen</button>'
+        +'<span id="designLabel" style="font-size:13px;color:var(--navy);font-weight:600">Gewählt: Improfy Profi ★</span>'
+        +'<button type="button" class="addbtn" onclick="reDownload()">📥 Intake-Excel</button>'
+        +'</div>'
+        +'<div id="galerie" style="display:none"></div>';
+  h+='<h2>'+_esc(((d.vorname||'')+' '+(d.nachname||'')).trim()||'Lebenslauf')+'</h2>';
+  if(d.angestrebter_job) h+='<div class="job">'+_esc(d.angestrebter_job)+'</div>';
+  const c=[d.geburtsdatum,d.adresse,d.mobil,d.email].filter(Boolean).map(_esc).join(' · ');
+  if(c) h+='<div class="contact">'+c+'</div>';
+  const B=d.berufserfahrung||[]; if(B.length){ h+='<h3>Berufserfahrung</h3>';
+    B.forEach(b=>{ h+='<div class="exp"><div class="top">'+_esc(b.jobtitel||'')+' <span class="meta">'+_esc(b.firma||'')+(b.zeitraum?' · '+_esc(b.zeitraum):'')+'</span></div>';
+      if((b.taetigkeiten||[]).length) h+='<ul>'+b.taetigkeiten.map(t=>'<li>'+_esc(t)+'</li>').join('')+'</ul>'; h+='</div>'; }); }
+  const E=d.bildung||[]; if(E.length){ h+='<h3>Bildung</h3>';
+    E.forEach(e=>{ h+='<div class="exp"><div class="top">'+_esc(e.abschluss||'')+' <span class="meta">'+_esc(e.institution||'')+(e.zeitraum?' · '+_esc(e.zeitraum):'')+'</span></div></div>'; }); }
+  if((d.zusatzqualifikationen||[]).length) h+='<h3>Zusatzqualifikationen</h3>'+d.zusatzqualifikationen.map(_esc).join('<br>');
+  if((d.sprachen||[]).length) h+='<h3>Sprachen</h3>'+d.sprachen.map(s=>_esc(s.sprache)+' – '+_esc(s.niveau)).join(' · ');
+  if((d.edv_kenntnisse||[]).length) h+='<h3>EDV / IT</h3>'+d.edv_kenntnisse.map(k=>_esc(k.programm)+' <span class="stars">'+_stars(k.sterne)+'</span>').join('<br>');
+  if((d.soft_skills||[]).length) h+='<h3>Soft Skills</h3>'+d.soft_skills.map(k=>_esc(k.eigenschaft)+' <span class="stars">'+_stars(k.sterne)+'</span>').join('<br>');
+  if(d.ueber_mich) h+='<h3>Über mich</h3><div class="um">'+_esc(d.ueber_mich)+'</div>';
+  if(d.hobbys) h+='<h3>Hobbys</h3>'+_esc(d.hobbys);
+  P.innerHTML=h; P.style.display='block';
+}
+function showFeedback(fehlend, filename){
+  const box=document.getElementById('feedback');
+  if(fehlend && fehlend.length){
+    box.className='fb warn';
+    box.innerHTML='<b>Diese Angaben fehlen noch</b> (im Excel gelb markiert). Ergänze sie unten und klick erneut auf „Excel erstellen":'
+      +'<ul>'+fehlend.map(f=>'<li>'+_esc(f)+'</li>').join('')+'</ul>';
+  } else {
+    box.className='fb ok';
+    box.innerHTML='<b>✅ Alle Pflichtangaben vorhanden.</b>';
+  }
+  box.style.display='block';
+}
+// Manueller „Excel erstellen"-Button -> gleiche Ausgabe in der App
+document.getElementById('cvform').addEventListener('submit', async function(e){
+  e.preventDefault();
+  const btn=e.submitter; if(btn){ btn.disabled=true; }
+  try{
+    const r=await fetch('/generate',{method:'POST',body:new FormData(e.target)});
+    const j=await r.json();
+    if(!r.ok){ alert(j.error||'Fehler'); }
+    else { handleResult(j); }
+  }catch(err){ alert('Fehler: '+err); }
+  if(btn){ btn.disabled=false; }
+});
+function setV(name,val){ const el=document.querySelector('[name="'+name+'"]'); if(el) el.value=val||''; }
+function rebuild(containerId,tplId,items,setter){
+  const c=document.getElementById(containerId); c.innerHTML='';
+  const tpl=document.getElementById(tplId);
+  const list = (items&&items.length)?items:[null];
+  list.forEach(it=>{ c.appendChild(tpl.content.cloneNode(true)); if(it) setter(c.lastElementChild,it); });
+}
+function fillForm(d){
+  ['kunde_von','vorname','nachname','geschlecht','angestrebter_job','geburtsdatum',
+   'mobil','email','adresse','ueber_mich','hobbys'].forEach(k=>setV(k,d[k]));
+  setV('zusatzqual',(d.zusatzqualifikationen||[]).join('\n'));
+  const fs=d.fuehrerschein||{};
+  const cbV=document.querySelector('[name=fs_vorhanden]'); if(cbV) cbV.checked=!!fs.vorhanden;
+  setV('fs_klasse',fs.klasse);
+  const cbE=document.querySelector('[name=fs_eu]'); if(cbE) cbE.checked=(fs.eu!==false);
+  rebuild('beruf','tpl-beruf',d.berufserfahrung,(row,it)=>{
+    row.querySelector('[name="beruf_zeitraum[]"]').value=it.zeitraum||'';
+    row.querySelector('[name="beruf_firma[]"]').value=it.firma||'';
+    row.querySelector('[name="beruf_jobtitel[]"]').value=it.jobtitel||'';
+    row.querySelector('[name="beruf_taet[]"]').value=(it.taetigkeiten||[]).join('\n');
+  });
+  rebuild('bildung','tpl-bildung',d.bildung,(row,it)=>{
+    row.querySelector('[name="bild_zeitraum[]"]').value=it.zeitraum||'';
+    row.querySelector('[name="bild_abschluss[]"]').value=it.abschluss||'';
+    row.querySelector('[name="bild_institution[]"]').value=it.institution||'';
+    row.querySelector('[name="bild_note[]"]').value=it.note||'';
+  });
+  rebuild('sprachen','tpl-sprache',d.sprachen,(row,it)=>{
+    row.querySelector('[name="spr_sprache[]"]').value=it.sprache||'';
+    row.querySelector('[name="spr_niveau[]"]').value=it.niveau||'';
+  });
+  rebuild('edv','tpl-edv',d.edv_kenntnisse,(row,it)=>{
+    row.querySelector('[name="edv_programm[]"]').value=it.programm||'';
+    row.querySelector('[name="edv_sterne[]"]').value=it.sterne||'';
+  });
+  rebuild('ss','tpl-ss',d.soft_skills,(row,it)=>{
+    row.querySelector('[name="ss_eigenschaft[]"]').value=it.eigenschaft||'';
+    row.querySelector('[name="ss_sterne[]"]').value=it.sterne||'';
+  });
+  window.scrollTo({top:220,behavior:'smooth'});
+}
+</script>
+</body>
+</html>

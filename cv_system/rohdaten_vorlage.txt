@@ -1,0 +1,30 @@
+========================================================================
+ROHDATEN – hier einfach ALLES reinschreiben, was du über die Person weißt.
+Reihenfolge egal, Stichworte reichen, unvollständig ist ok.
+Die KI sortiert es automatisch an die richtige Stelle in der Excel.
+========================================================================
+
+Name:
+Geburtsdatum:
+Telefon:
+E-Mail:
+Adresse:
+Führerschein (Klasse / EU?):
+Angestrebter Job:
+
+Berufserfahrung (Firma, Zeitraum, was gemacht – einfach untereinander):
+-
+-
+-
+
+Ausbildung / Schule / Studium:
+-
+-
+
+Sprachen:
+
+Zertifikate / Zusatzqualifikationen (z.B. §34a):
+
+Hobbys:
+
+Sonstige Notizen (auch handschriftliche vom CV):
