@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Improfy – Nutzungs-Übersicht</title>
+<style>
+  :root{
+    --navy:#1e293b; --muted:#64748b; --green:#12a150; --green-d:#0e7d3f;
+    --mint:#eafaf0; --line:#e6e9ef; --bg:#f5f7fa; --card:#fff; --grid:#eef1f5;
+    --radius:14px; --shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04);
+  }
+  *{ box-sizing:border-box; }
+  html{ -webkit-font-smoothing:antialiased; }
+  body{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    margin:0; background:var(--bg); color:var(--navy); font-size:15px; line-height:1.5; }
+
+  header{ background:#fff; padding:14px 28px; display:flex; align-items:center; gap:16px;
+    border-bottom:1px solid var(--line); position:sticky; top:0; z-index:20; }
+  header::after{ content:""; position:absolute; left:0; right:0; bottom:-1px; height:3px; background:var(--green); }
+  header img.logo{ height:34px; width:auto; }
+  header .tag{ font-weight:700; font-size:16px; letter-spacing:-.01em; }
+  header .sub{ font-size:12.5px; color:var(--muted); margin-top:1px; }
+  header nav{ margin-left:auto; display:flex; gap:18px; align-items:center; }
+  header nav a{ color:var(--green-d); font-weight:700; text-decoration:none; font-size:14px; }
+
+  main{ max-width:1000px; margin:26px auto; padding:0 20px 70px; }
+
+  .filter{ display:flex; gap:8px; align-items:center; margin:0 0 20px; flex-wrap:wrap; }
+  .filter span{ font-size:12.5px; color:var(--muted); font-weight:600; margin-right:4px; }
+  .filter a{ padding:6px 14px; border:1px solid var(--line); border-radius:999px; background:#fff;
+    color:var(--muted); text-decoration:none; font-size:13px; font-weight:600; transition:.15s; }
+  .filter a:hover{ border-color:#bfe8cd; color:var(--green-d); }
+  .filter a.aktiv{ background:var(--mint); border-color:#bfe8cd; color:var(--green-d); }
+
+  .kacheln{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:22px; }
+  .kachel{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px 18px; box-shadow:var(--shadow); }
+  .kachel .beschriftung{ font-size:12.5px; color:var(--muted); font-weight:600; }
+  .kachel .wert{ font-size:30px; font-weight:700; letter-spacing:-.02em; margin-top:4px;
+    font-variant-numeric:tabular-nums; }
+  .kachel .zusatz{ font-size:12px; color:var(--muted); margin-top:2px; }
+
+  .karte{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:20px 22px; box-shadow:var(--shadow); margin-bottom:22px; }
+  .karte h2{ font-size:15.5px; margin:0 0 2px; letter-spacing:-.01em; }
+  .karte .unter{ font-size:12.5px; color:var(--muted); margin:0 0 18px; }
+
+  /* --- Verlauf: eine Serie, deshalb ohne Legende (der Titel benennt sie) --- */
+  /* padding-left ist die Achsenspalte: ohne sie verschwindet die Beschriftung
+     hinter dem ersten Balken. margin-top gibt der obersten Marke Luft. */
+  .verlauf{ display:flex; align-items:flex-end; gap:2px; height:150px; margin-top:22px;
+    padding-left:32px; border-bottom:1px solid var(--grid); position:relative; }
+  .verlauf .marke{ position:absolute; left:32px; right:0; border-top:1px solid var(--grid); }
+  .verlauf .marke b{ position:absolute; left:-32px; top:-8px; z-index:2;
+    font-size:11px; color:var(--muted); font-weight:600; font-variant-numeric:tabular-nums; }
+  .saeule{ flex:1 1 0; max-width:24px; min-width:3px; display:flex; align-items:flex-end;
+    height:100%; position:relative; }
+  .saeule i{ display:block; width:100%; background:var(--green);
+    border-radius:4px 4px 0 0;                 /* Datenende gerundet, Basislinie kantig */
+    min-height:2px; transition:background .12s; }
+  .saeule.leer i{ background:var(--grid); }
+  .saeule:hover i{ background:var(--green-d); }
+  .saeule::after{ content:attr(data-info); position:absolute; bottom:calc(100% + 8px); left:50%;
+    transform:translateX(-50%); background:var(--navy); color:#fff; font-size:12px; white-space:nowrap;
+    padding:6px 9px; border-radius:8px; opacity:0; pointer-events:none; transition:opacity .12s; z-index:5; }
+  .saeule:hover::after{ opacity:1; }
+  .achse{ display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted);
+    margin-top:8px; padding-left:32px; }
+
+  table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  th{ text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--muted); font-weight:700; padding:0 10px 9px; border-bottom:1px solid var(--line); }
+  th.z, td.z{ text-align:right; font-variant-numeric:tabular-nums; }
+  td{ padding:11px 10px; border-bottom:1px solid var(--grid); vertical-align:middle; }
+  tr:last-child td{ border-bottom:0; }
+  .stadtname{ font-weight:600; }
+  .balken{ height:10px; background:var(--grid); border-radius:999px; overflow:hidden; min-width:70px; }
+  .balken i{ display:block; height:100%; background:var(--green); border-radius:999px; }
+  .still{ color:var(--muted); }
+
+  .fehlerzahl{ color:#b91c1c; font-weight:600; }
+  .pille{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:11.5px; font-weight:600;
+    background:var(--mint); color:var(--green-d); }
+  .pille.warn{ background:#fef2f2; color:#b91c1c; }
+  .leer-hinweis{ color:var(--muted); font-size:13.5px; padding:8px 0; }
+  @media(max-width:640px){
+    .verweis-spalte{ display:none; }
+    main{ padding:0 14px 60px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <img class="logo" src="/static/improfy-logo.png" alt="Improfy">
+  <div>
+    <div class="tag">Nutzungs-Übersicht</div>
+    <div class="sub">Welcher Standort nutzt den Generator wie viel</div>
+  </div>
+  <nav>
+    <a href="{{ url_for('index') }}">Zum Generator →</a>
+    <a href="{{ url_for('logout') }}" style="color:var(--muted)">Abmelden</a>
+  </nav>
+</header>
+
+<main>
+  <div class="filter">
+    <span>Zeitraum</span>
+    {% for t, beschriftung in [(7,'7 Tage'),(30,'30 Tage'),(90,'90 Tage'),(365,'1 Jahr')] %}
+      <a href="{{ url_for('admin', tage=t) }}" class="{{ 'aktiv' if tage == t }}">{{ beschriftung }}</a>
+    {% endfor %}
+  </div>
+
+  <div class="kacheln">
+    <div class="kachel">
+      <div class="beschriftung">Lebensläufe</div>
+      <div class="wert">{{ summen.lebenslaeufe }}</div>
+      <div class="zusatz">Excel-Dateien erstellt</div>
+    </div>
+    <div class="kachel">
+      <div class="beschriftung">PDF-Designs</div>
+      <div class="wert">{{ summen.designs }}</div>
+      <div class="zusatz">gestaltete Lebensläufe</div>
+    </div>
+    <div class="kachel">
+      <div class="beschriftung">KI-Auswertungen</div>
+      <div class="wert">{{ summen.ki }}</div>
+      <div class="zusatz">
+        {% if summen.ki_schnitt_s %}Ø {{ summen.ki_schnitt_s }} s pro Auswertung{% else %}Schnell-Modus{% endif %}
+      </div>
+    </div>
+    <div class="kachel">
+      <div class="beschriftung">Aktive Standorte</div>
+      <div class="wert">{{ summen.aktive_staedte }}</div>
+      <div class="zusatz">von {{ uebersicht|length }} angelegt</div>
+    </div>
+    <div class="kachel">
+      <div class="beschriftung">Fehlversuche</div>
+      <div class="wert">{{ summen.fehlversuche }}</div>
+      <div class="zusatz">falsche Passwörter</div>
+    </div>
+  </div>
+
+  {% set hoechst = (verlauf | map(attribute='gesamt') | max) or 0 %}
+  <div class="karte">
+    <h2>Nutzung pro Tag</h2>
+    <p class="unter">Erstellte Lebensläufe, Designs und KI-Auswertungen zusammen,
+       letzte {{ verlauf|length }} Tage.</p>
+    {% if hoechst == 0 %}
+      <p class="leer-hinweis">In diesem Zeitraum wurde noch nichts erstellt.</p>
+    {% else %}
+      {% set mitte = (hoechst / 2) | round | int %}
+      <div class="verlauf">
+        <div class="marke" style="bottom:100%"><b>{{ hoechst }}</b></div>
+        {# Linie auf die Höhe des gerundeten Werts setzen, sonst steht die
+           Beschriftung neben einer Linie, die einen anderen Wert meint. #}
+        {% if mitte and mitte != hoechst %}
+          <div class="marke" style="bottom:{{ mitte / hoechst * 100 }}%"><b>{{ mitte }}</b></div>
+        {% endif %}
+        {% for tag in verlauf %}
+          <div class="saeule {{ 'leer' if tag.gesamt == 0 }}"
+               data-info="{{ tag.tag[8:10] }}.{{ tag.tag[5:7] }}. · {{ tag.gesamt }} Aktion{{ '' if tag.gesamt == 1 else 'en' }}">
+            <i style="height:{{ (tag.gesamt / hoechst * 100) if tag.gesamt else 0 }}%"></i>
+          </div>
+        {% endfor %}
+      </div>
+      <div class="achse">
+        <span>{{ verlauf[0].tag[8:10] }}.{{ verlauf[0].tag[5:7] }}.</span>
+        <span>{{ verlauf[-1].tag[8:10] }}.{{ verlauf[-1].tag[5:7] }}. (heute)</span>
+      </div>
+    {% endif %}
+  </div>
+
+  {% set spitze = (uebersicht | map(attribute='gesamt') | max) or 0 %}
+  <div class="karte">
+    <h2>Standorte im Vergleich</h2>
+    <p class="unter">Letzte {{ tage }} Tage. Standorte ohne Aktivität stehen mit dabei.</p>
+    {% if not uebersicht %}
+      <p class="leer-hinweis">Noch kein Standort angelegt —
+         auf dem Server mit <code>python3 verwalten.py stadt "Köln"</code>.</p>
+    {% else %}
+    <table>
+      <thead>
+        <tr>
+          <th>Standort</th>
+          <th class="verweis-spalte">Auslastung</th>
+          <th class="z">Lebensläufe</th>
+          <th class="z">Designs</th>
+          <th class="z">KI</th>
+          <th class="z">Anmeldungen</th>
+          <th>Zuletzt aktiv</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in uebersicht %}
+        <tr>
+          <td class="stadtname">{{ e.name }}</td>
+          <td class="verweis-spalte">
+            <div class="balken"><i style="width:{{ (e.gesamt / spitze * 100) if spitze and e.gesamt else 0 }}%"></i></div>
+          </td>
+          <td class="z">{{ e.lebenslaeufe }}</td>
+          <td class="z">{{ e.designs }}</td>
+          <td class="z">{{ e.ki }}</td>
+          <td class="z">{{ e.logins }}</td>
+          <td class="{{ 'still' if not e.zuletzt }}">{{ e.zuletzt | ortszeit if e.zuletzt else 'noch nie' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+
+  <div class="karte">
+    <h2>Letzte Ereignisse</h2>
+    <p class="unter">Nur Standort, Aktion und Zeitpunkt — bewusst ohne Kundendaten.</p>
+    {% if not letzte %}
+      <p class="leer-hinweis">Noch nichts passiert.</p>
+    {% else %}
+    <table>
+      <thead>
+        <tr>
+          <th>Zeit</th><th>Standort</th><th>Aktion</th>
+          <th class="z verweis-spalte">Dauer</th><th class="verweis-spalte">IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in letzte %}
+        <tr>
+          <td>{{ e.zeit | ortszeit }}</td>
+          <td>{{ e.name }}</td>
+          <td>
+            <span class="pille {{ 'warn' if e.status != 'ok' }}">{{ e.aktion_text }}</span>
+            {% if e.status != 'ok' and e.aktion != 'login_fehler' %}<span class="fehlerzahl"> fehlgeschlagen</span>{% endif %}
+          </td>
+          <td class="z verweis-spalte still">{{ (e.dauer_ms / 1000) | round(1) ~ ' s' if e.dauer_ms else '—' }}</td>
+          <td class="verweis-spalte still">{{ e.ip or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+</main>
+</body>
+</html>

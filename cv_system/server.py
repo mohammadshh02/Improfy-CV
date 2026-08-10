@@ -19,9 +19,10 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 
 import openpyxl
-from flask import Flask, jsonify, render_template, request, send_file
+from flask import Flask, jsonify, redirect, render_template, request, send_file, url_for
 
 import fill_cv  # nutzt die bestehende Füll-/Style-/Entmerge-Logik
 from schema import CV_JSON_SCHEMA
@@ -39,6 +40,40 @@ if os.path.exists(_envfile):
             os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
 
 app = Flask(__name__)
+
+# Erst NACH dem Laden der .env importieren: zugang.py wertet beim Import
+# DATEN_DIR und FLASK_SECRET aus.
+import nutzung  # noqa: E402
+import zugang  # noqa: E402
+
+app.secret_key = zugang.secret_key()
+app.permanent_session_lifetime = zugang.SITZUNGSDAUER
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    # Solange die App nur über http:// läuft, würde ein Secure-Cookie nie
+    # gesendet werden. Sobald eine Domain mit HTTPS steht: COOKIE_SECURE=1 setzen.
+    SESSION_COOKIE_SECURE=os.environ.get("COOKIE_SECURE", "") == "1",
+)
+nutzung.init()
+
+# Hinter nginx steckt die echte Client-IP in X-Forwarded-For; ohne das sähe die
+# App nur 127.0.0.1 und die Login-Bremse würde alle gemeinsam aussperren.
+if os.environ.get("HINTER_PROXY", "1") == "1":
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+# Seiten, die ohne Anmeldung erreichbar sein müssen.
+OFFEN = {"login", "static"}
+
+
+@app.before_request
+def _anmeldung_verlangen():
+    if request.endpoint in OFFEN or request.endpoint is None:
+        return None
+    if not zugang.angemeldet():
+        return zugang.nicht_angemeldet_antwort()
+    return None
 
 
 @app.after_request
@@ -199,13 +234,23 @@ FOTO_MAX_KANTE = 1000
 def _foto_data_uri(rohdaten, mimetype=None):
     """Foto auf Druckgröße bringen und als data:-URI zurückgeben."""
     try:
-        from PIL import Image
+        from PIL import Image, ImageOps
         bild = Image.open(io.BytesIO(rohdaten))
         bild.load()
+        # Handy-Fotos speichern ihre Drehung nur als EXIF-Markierung. Beim
+        # Neuspeichern geht die verloren und das Bild läge quer – deshalb die
+        # Drehung vorher fest ins Bild rechnen.
+        bild = ImageOps.exif_transpose(bild) or bild
         if max(bild.size) > FOTO_MAX_KANTE:
             bild.thumbnail((FOTO_MAX_KANTE, FOTO_MAX_KANTE), Image.LANCZOS)
         if bild.mode not in ("RGB", "L"):
-            bild = bild.convert("RGB")          # PNG mit Alpha -> JPEG-tauglich
+            if bild.mode in ("RGBA", "LA", "P"):     # Transparenz auf Weiß legen,
+                bild = bild.convert("RGBA")          # sonst wird sie im JPEG schwarz
+                grund = Image.new("RGB", bild.size, (255, 255, 255))
+                grund.paste(bild, mask=bild.split()[-1])
+                bild = grund
+            else:
+                bild = bild.convert("RGB")
         puffer = io.BytesIO()
         bild.save(puffer, "JPEG", quality=85, optimize=True, progressive=True)
         if puffer.tell() < len(rohdaten):
@@ -539,14 +584,90 @@ def _sammle_eingaben(req):
     return text, files
 
 
+# ------------------------------------------------------------ An-/Abmeldung
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    fehler = None
+    gewaehlt = request.form.get("kennung") or ""
+    weiter = request.form.get("weiter") or request.args.get("weiter") or ""
+
+    if request.method == "POST":
+        ip = zugang.absender_ip()
+        if nutzung.zu_viele_fehlversuche(ip):
+            fehler = (f"Zu viele Fehlversuche. Bitte {zugang.SPERRE_MINUTEN} Minuten "
+                      "warten und es dann erneut probieren.")
+        else:
+            rolle = zugang.pruefe(gewaehlt, request.form.get("passwort"))
+            if rolle:
+                zugang.anmelden(gewaehlt, rolle)
+                nutzung.protokolliere(gewaehlt, "login", ip=ip)
+                # Nur app-interne Ziele zulassen, sonst wird der Login zur
+                # Weiterleitung auf fremde Seiten missbraucht.
+                if weiter.startswith("/") and not weiter.startswith("//"):
+                    return redirect(weiter)
+                return redirect(url_for("admin" if rolle == "admin" else "index"))
+            fehler = "Passwort stimmt nicht."
+            nutzung.protokolliere(gewaehlt or "-", "login_fehler", status="fehler", ip=ip)
+
+    return render_template("login.html", staedte=zugang.staedte(),
+                           admin_da=bool(zugang.konfig().get("admin")),
+                           fehler=fehler, gewaehlt=gewaehlt, weiter=weiter)
+
+
+@app.template_filter("ortszeit")
+def _ortszeit(iso, form="%d.%m. %H:%M"):
+    """UTC-Zeitstempel aus der Datenbank als deutsche Ortszeit anzeigen."""
+    if not iso:
+        return "—"
+    try:
+        from datetime import datetime, timezone
+        zeit = datetime.fromisoformat(iso)
+        if zeit.tzinfo is None:
+            zeit = zeit.replace(tzinfo=timezone.utc)
+        try:
+            from zoneinfo import ZoneInfo
+            zeit = zeit.astimezone(ZoneInfo("Europe/Berlin"))
+        except Exception:
+            pass
+        return zeit.strftime(form)
+    except ValueError:
+        return iso
+
+
+@app.route("/logout")
+def logout():
+    zugang.abmelden()
+    return redirect(url_for("login"))
+
+
+@app.route("/admin")
+@zugang.nur_admin
+def admin():
+    tage = max(1, min(365, request.args.get("tage", type=int) or 30))
+    return render_template("admin.html", tage=tage, summen=nutzung.summen(tage),
+                           uebersicht=nutzung.uebersicht(tage),
+                           verlauf=nutzung.verlauf(min(tage, 60)),
+                           letzte=nutzung.letzte(80))
+
+
 # --------------------------------------------------------------------- Routen
 @app.route("/")
 def index():
-    return render_template("form.html", kunde_von=fill_cv.DEFAULT_KUNDE_VON, vorlagen=VORLAGEN)
+    return render_template("form.html", kunde_von=fill_cv.DEFAULT_KUNDE_VON,
+                           vorlagen=VORLAGEN, stadt=zugang.stadt_name(zugang.kennung()),
+                           ist_admin=zugang.ist_admin())
 
 
 _KEINE_KI = ("Keine KI verfügbar. Entweder Claude Code installiert lassen (nutzt dein Max-Abo) "
              "oder einen ANTHROPIC_API_KEY in cv_system/.env hinterlegen.")
+
+
+def _protokoll(aktion, status="ok", start=None):
+    """Ein Ereignis für das Admin-Panel festhalten — ohne jede Kundeninfo."""
+    nutzung.protokolliere(
+        zugang.kennung(), aktion, status=status,
+        dauer_ms=int((time.monotonic() - start) * 1000) if start else None,
+        ip=zugang.absender_ip())
 
 
 @app.route("/extract", methods=["POST"])
@@ -557,10 +678,14 @@ def extract():
     text, files = _sammle_eingaben(request)
     if not text and not files:
         return jsonify({"error": "Bitte Text eingeben oder Dateien (PDF/Screenshot/Foto) hochladen."}), 400
+    start = time.monotonic()
     try:
-        return jsonify(ki_sortieren(text or None, files))
+        daten = ki_sortieren(text or None, files)
     except Exception as e:
+        _protokoll("ki_auswertung", status="fehler", start=start)
         return jsonify({"error": f"Fehler bei der KI-Sortierung: {e}"}), 500
+    _protokoll("ki_auswertung", start=start)
+    return jsonify(daten)
 
 
 @app.route("/generate-auto", methods=["POST"])
@@ -571,11 +696,16 @@ def generate_auto():
     text, files = _sammle_eingaben(request)
     if not text and not files:
         return jsonify({"error": "Bitte Text eingeben oder Dateien (PDF/Screenshot/Foto) hochladen."}), 400
+    start = time.monotonic()
     try:
         data = ki_sortieren(text or None, files)
     except Exception as e:
+        _protokoll("ki_auswertung", status="fehler", start=start)
         return jsonify({"error": f"Fehler bei der KI-Sortierung: {e}"}), 500
-    return xlsx_antwort(data)
+    _protokoll("ki_auswertung", start=start)
+    antwort = xlsx_antwort(data)
+    _protokoll("lebenslauf")
+    return antwort
 
 
 # ------------------------------------------------------- Figma-Anbindung (read)
@@ -637,6 +767,7 @@ def cv_pdf():
     """Daten (JSON) + optionales Foto + Design -> fertiger, designter Lebenslauf als PDF."""
     if not CHROME:
         return jsonify({"error": "Kein Chrome/Edge gefunden – PDF-Erzeugung nicht möglich."}), 400
+    start = time.monotonic()
     try:
         daten = json.loads(request.form.get("daten") or "{}")
     except Exception:
@@ -663,7 +794,12 @@ def cv_pdf():
     else:
         beruf = [improfy_block(daten)] + (daten.get("berufserfahrung") or [])
         html = render_template("cv_gruen.html", d=daten, beruf=beruf, foto=foto_uri, niveau=_niveau_txt, logo=LOGO_URI)
-    pdf = html_to_pdf(html)
+    try:
+        pdf = html_to_pdf(html)
+    except Exception:
+        _protokoll("pdf_design", status="fehler", start=start)
+        raise
+    _protokoll("pdf_design", start=start)
     name = f"{daten.get('vorname','')}_{daten.get('nachname','')}".strip("_") or "Lebenslauf"
     name = re.sub(r"\s+", "_", name) + "_Lebenslauf.pdf"
     return send_file(io.BytesIO(pdf), as_attachment=True, download_name=name, mimetype="application/pdf")
@@ -671,7 +807,9 @@ def cv_pdf():
 
 @app.route("/generate", methods=["POST"])
 def generate():
-    return xlsx_antwort(build_data(request.form))
+    antwort = xlsx_antwort(build_data(request.form))
+    _protokoll("lebenslauf")
+    return antwort
 
 
 if __name__ == "__main__":

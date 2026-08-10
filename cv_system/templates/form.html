@@ -22,6 +22,19 @@
   header img.logo{ height:34px; width:auto; }
   header .tag{ font-weight:700; font-size:16px; letter-spacing:-.01em; }
   header .sub{ font-size:12.5px; color:var(--muted); margin-top:1px; }
+  /* min-width:0 lässt den Textblock schrumpfen, statt die Navigation umzubrechen */
+  header > div:not(.kopf-nav){ min-width:0; }
+  .kopf-nav{ margin-left:auto; display:flex; align-items:center; gap:16px;
+    font-size:14px; white-space:nowrap; flex-shrink:0; }
+  .kopf-nav a{ color:var(--green-d); font-weight:700; text-decoration:none; }
+  .kopf-nav a.leise{ color:var(--muted); font-weight:600; }
+  .kopf-stadt{ background:var(--mint); color:var(--green-d); font-weight:700;
+    padding:4px 12px; border-radius:999px; font-size:13px; }
+  @media(max-width:820px){
+    header{ flex-wrap:wrap; padding:12px 18px; }
+    header .sub{ display:none; }
+    .kopf-nav{ gap:12px; font-size:13px; }
+  }
 
   /* Layout */
   form{ max-width:800px; margin:28px auto; padding:0 20px 90px; }
@@ -118,7 +131,12 @@
     <div class="tag">Wir bringen Sie zurück in den Job</div>
     <div class="sub">📄 Lebenslauf-Generator – aus Infos, PDF, Screenshot oder Foto in Sekunden</div>
   </div>
-  <a href="/figma" style="margin-left:auto;color:var(--green-d);font-weight:700;text-decoration:none;font-size:14px">🎨 Figma-Vorlagen →</a>
+  <div class="kopf-nav">
+    {% if stadt %}<span class="kopf-stadt">📍 {{ stadt }}</span>{% endif %}
+    {% if ist_admin %}<a href="/admin">📊 Übersicht</a>{% endif %}
+    <a href="/figma">🎨 Figma-Vorlagen →</a>
+    <a href="/logout" class="leise">Abmelden</a>
+  </div>
 </header>
 
 <form method="post" action="/generate" id="cvform">
@@ -324,9 +342,16 @@ function _done(msg){ document.getElementById('extractStatus').textContent=msg;
 
 // Antwort einlesen. Bei Upload-Limit oder Server-Absturz kommt HTML/Text statt
 // JSON zurück – ohne diese Behandlung sähe der Nutzer nur "Unexpected token".
+// Nach 12 h läuft die Anmeldung ab. Dann kommt statt Daten ein 401 zurück –
+// dann direkt zum Login statt eine Fehlermeldung anzuzeigen, die niemand versteht.
+function _sitzungAbgelaufen(j){
+  if(j && j.neu_anmelden){ location.href='/login'; return true; }
+  return false;
+}
+
 async function _leseAntwort(r){
   const txt=await r.text();
-  try{ return JSON.parse(txt); }
+  try{ const j=JSON.parse(txt); _sitzungAbgelaufen(j); return j; }
   catch(e){
     if(r.status===413) throw new Error('Upload zu groß fürs Hosting (max. 4,5 MB pro Anfrage). Bitte weniger oder kleinere Dateien.');
     if(r.status===504) throw new Error('Zeitüberschreitung – die KI hat zu lange gebraucht. Bitte mit weniger Seiten erneut versuchen.');
@@ -372,7 +397,8 @@ async function makeCV(){
   try{
     const r=await fetch('/cv-pdf',{method:'POST',body:fd});
     const ct=r.headers.get('content-type')||'';
-    if(ct.includes('application/json')){ const j=await r.json(); alert(j.error||'Fehler'); }
+    if(ct.includes('application/json')){ const j=await r.json();
+      if(!_sitzungAbgelaufen(j)){ alert(j.error||'Fehler'); } }
     else{
       const blob=await r.blob();
       let fn=((_lastDaten.vorname||'')+'_'+(_lastDaten.nachname||'')).replace(/^_|_$/g,'')+'_Lebenslauf.pdf';
@@ -496,6 +522,7 @@ document.getElementById('cvform').addEventListener('submit', async function(e){
   try{
     const r=await fetch('/generate',{method:'POST',body:new FormData(e.target)});
     const j=await r.json();
+    if(_sitzungAbgelaufen(j)){ return; }
     if(!r.ok){ alert(j.error||'Fehler'); }
     else { handleResult(j); }
   }catch(err){ alert('Fehler: '+err); }

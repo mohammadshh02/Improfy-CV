@@ -3,6 +3,10 @@
 *.env
 !.env.example
 
+# === Zugänge & Protokoll — gehören auf den Server, nicht ins Repo ===
+daten/
+cv_system/daten/
+
 # === Kundendaten (DSGVO) — bleiben lokal ===
 ausgabe/
 *.xlsx
