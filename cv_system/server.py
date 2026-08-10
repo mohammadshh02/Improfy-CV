@@ -217,7 +217,27 @@ def _finde_chrome():
 CHROME = _finde_chrome()
 
 # Schnelle, feste HTML-Designs (zuverlässig, mehrseitig, ~3 s). Weitere Stile generiert Claude.
-DESIGNS = {"pro": "cv_pro.html", "gruen": "cv_gruen.html", "clean": "cv_clean.html", "blob": "cv_blob.html"}
+DESIGNS = {"referenz": "cv_referenz.html", "pro": "cv_pro.html",
+           "gruen": "cv_gruen.html", "clean": "cv_clean.html", "blob": "cv_blob.html"}
+
+
+SPRACH_STUFEN = {5: "Muttersprache", 4: "Fließend", 3: "Gute Kenntnisse",
+                 2: "Grundkenntnisse", 1: "Grundkenntnisse"}
+
+
+def _sprachen_lesbar(daten):
+    """Zahlen bei Sprachen in Worte übersetzen.
+
+    Laut Datenvertrag ist das Niveau einer Sprache ein Text ("Muttersprache").
+    Kommt trotzdem eine Zahl an — aus einem älteren Datensatz oder weil jemand
+    "5" ins Formular tippt — stünde im fertigen Lebenslauf beim Kunden eine
+    nackte 5. Deshalb hier abfangen statt in jeder der vier Vorlagen.
+    """
+    for eintrag in daten.get("sprachen") or []:
+        wert = str(eintrag.get("niveau", "")).strip()
+        if wert.isdigit():
+            eintrag["niveau"] = SPRACH_STUFEN.get(int(wert), wert)
+    return daten
 
 
 def _niveau_txt(sterne):
@@ -776,6 +796,7 @@ def cv_pdf():
         return jsonify({"error": "Ungültige Daten."}), 400
     if not (daten.get("vorname") or daten.get("nachname")):
         return jsonify({"error": "Erst einen Lebenslauf erstellen, dann das Design."}), 400
+    daten = _sprachen_lesbar(daten)
 
     foto_uri = None
     foto = request.files.get("foto")
