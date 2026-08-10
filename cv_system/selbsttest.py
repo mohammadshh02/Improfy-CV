@@ -91,7 +91,10 @@ def test_excel():
         return
     antwort = r.get_json()
     roh = base64.b64decode(antwort["file_b64"])
-    ws = openpyxl.load_workbook(io.BytesIO(roh))[antwort["filename"].rsplit(".", 1)[0][:31]]
+    # Erstes Blatt statt aus dem Dateinamen geraten: das Blatt heißt
+    # "Max Mustermann", die Datei "Max_Mustermann.xlsx".
+    wb = openpyxl.load_workbook(io.BytesIO(roh))
+    ws = wb[wb.sheetnames[0]]
     pruefe("Keine verbundenen Zellen (sonst nicht kopierbar)",
            len(ws.merged_cells.ranges) == 0, f"{len(ws.merged_cells.ranges)} gefunden")
     pruefe("Kein Blattschutz", not ws.protection.sheet)
