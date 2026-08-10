@@ -107,6 +107,35 @@ def zu_viele_fehlversuche(ip):
 
 
 # ------------------------------------------------------------- Auswertungen
+def fehlversuche_je_ip(stunden=24, limit=5):
+    """Woher kamen falsche Passwörter — [(ip, anzahl)], häufigste zuerst."""
+    try:
+        with _verbindung() as con:
+            zeilen = con.execute(
+                "SELECT ip, COUNT(*) FROM ereignisse"
+                " WHERE aktion='login_fehler' AND zeit>=? AND ip IS NOT NULL"
+                " GROUP BY ip ORDER BY 2 DESC LIMIT ?",
+                (_grenze(minuten=stunden * 60), limit),
+            ).fetchall()
+    except sqlite3.Error:
+        return []
+    return [(z[0], z[1]) for z in zeilen]
+
+
+def anmeldungen(stunden=24):
+    """Erfolgreiche und fehlgeschlagene Anmeldungen im Zeitraum."""
+    try:
+        with _verbindung() as con:
+            z = con.execute(
+                "SELECT SUM(aktion='login') AS ok, SUM(aktion='login_fehler') AS fehler"
+                " FROM ereignisse WHERE zeit>=?",
+                (_grenze(minuten=stunden * 60),),
+            ).fetchone()
+    except sqlite3.Error:
+        return {"ok": 0, "fehler": 0}
+    return {"ok": z["ok"] or 0, "fehler": z["fehler"] or 0}
+
+
 def uebersicht(tage=30):
     """Pro Stadt: wie viel, wovon, und wann zuletzt."""
     seit = _grenze(tage=tage)

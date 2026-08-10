@@ -44,6 +44,7 @@ app = Flask(__name__)
 # Erst NACH dem Laden der .env importieren: zugang.py wertet beim Import
 # DATEN_DIR und FLASK_SECRET aus.
 import nutzung  # noqa: E402
+import systembericht  # noqa: E402
 import zugang  # noqa: E402
 
 app.secret_key = zugang.secret_key()
@@ -647,7 +648,8 @@ def admin():
     return render_template("admin.html", tage=tage, summen=nutzung.summen(tage),
                            uebersicht=nutzung.uebersicht(tage),
                            verlauf=nutzung.verlauf(min(tage, 60)),
-                           letzte=nutzung.letzte(80))
+                           letzte=nutzung.letzte(80),
+                           system=systembericht.kennzahlen())
 
 
 # --------------------------------------------------------------------- Routen

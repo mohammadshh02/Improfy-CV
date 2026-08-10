@@ -84,6 +84,20 @@
     background:var(--mint); color:var(--green-d); }
   .pille.warn{ background:#fef2f2; color:#b91c1c; }
   .leer-hinweis{ color:var(--muted); font-size:13.5px; padding:8px 0; }
+
+  /* System & Sicherheit */
+  .zustand{ border-radius:10px; padding:11px 14px; font-size:13.5px; font-weight:600; margin-bottom:18px; }
+  .zustand.gut{ background:var(--mint); border:1px solid #bfe8cd; color:var(--green-d); }
+  .zustand.warn{ background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+  .system-werte{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:22px; }
+  .system-werte .beschriftung{ font-size:11.5px; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--muted); font-weight:700; }
+  .klein{ font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .bericht{ margin-top:20px; border-top:1px solid var(--grid); padding-top:14px; }
+  .bericht summary{ cursor:pointer; font-size:13px; color:var(--green-d); font-weight:600; }
+  .bericht pre{ background:var(--bg); border:1px solid var(--line); border-radius:10px;
+    padding:14px 16px; font-size:12.5px; line-height:1.6; overflow-x:auto; margin:12px 0 0;
+    color:var(--navy); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
   @media(max-width:640px){
     .verweis-spalte{ display:none; }
     main{ padding:0 14px 60px; }
@@ -207,6 +221,72 @@
         {% endfor %}
       </tbody>
     </table>
+    {% endif %}
+  </div>
+
+  <div class="karte">
+    <h2>System &amp; Sicherheit</h2>
+    <p class="unter">Zustand des Servers. Die Prüfung läuft einmal täglich automatisch,
+       auch wenn niemand hinschaut.</p>
+
+    {% set b = system.bericht %}
+    {% if not b %}
+      <div class="zustand warn">Noch keine automatische Prüfung gelaufen — der tägliche
+        Auftrag schreibt den ersten Bericht in der Nacht.</div>
+    {% elif b.veraltet %}
+      <div class="zustand warn">Letzte Prüfung ist älter als zwei Tage
+        ({{ b.stand | ortszeit }}) — läuft der tägliche Auftrag noch?</div>
+    {% elif b.ok %}
+      <div class="zustand gut">Alles in Ordnung · geprüft {{ b.stand | ortszeit }}</div>
+    {% else %}
+      <div class="zustand warn">{{ b.zustand }} · geprüft {{ b.stand | ortszeit }}</div>
+    {% endif %}
+
+    <div class="system-werte">
+      {% set p = system.platte %}
+      <div>
+        <div class="beschriftung">Speicherplatz</div>
+        <div class="balken" style="margin:6px 0 5px">
+          <i style="width:{{ p.prozent }}%; background:{{ '#b91c1c' if p.prozent >= 85 else 'var(--green)' }}"></i>
+        </div>
+        <div class="klein">{{ '%.1f'|format(p.benutzt_gb) }} von {{ '%.0f'|format(p.gesamt_gb) }} GB belegt ({{ p.prozent }} %)</div>
+      </div>
+
+      {% if system.speicher %}
+      {% set s = system.speicher %}
+      <div>
+        <div class="beschriftung">Arbeitsspeicher</div>
+        <div class="balken" style="margin:6px 0 5px">
+          <i style="width:{{ 100 - s.prozent_frei }}%; background:{{ '#b91c1c' if s.prozent_frei <= 10 else 'var(--green)' }}"></i>
+        </div>
+        <div class="klein">{{ '%.1f'|format(s.frei_gb) }} von {{ '%.1f'|format(s.gesamt_gb) }} GB frei</div>
+      </div>
+      {% endif %}
+
+      <div>
+        <div class="beschriftung">Fehlversuche nach IP (7 Tage)</div>
+        {% if not system.fehl_ips %}
+          <div class="klein" style="margin-top:8px">Keine falschen Passwörter — niemand probiert herum.</div>
+        {% else %}
+          <table style="margin-top:6px">
+            {% for ip, anzahl in system.fehl_ips %}
+            <tr>
+              <td style="padding:5px 0; border:0">{{ ip }}</td>
+              <td class="z" style="padding:5px 0; border:0">
+                <span class="pille {{ 'warn' if anzahl >= 10 }}">{{ anzahl }}×</span>
+              </td>
+            </tr>
+            {% endfor %}
+          </table>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if b %}
+      <details class="bericht">
+        <summary>Vollständigen Bericht anzeigen</summary>
+        <pre>{{ b.text }}</pre>
+      </details>
     {% endif %}
   </div>
 
