@@ -35,10 +35,24 @@
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
     background-repeat:no-repeat; background-position:right 12px center; }
 
-  button{ width:100%; margin-top:22px; padding:12px; border:0; border-radius:10px;
+  button[type=submit]{ width:100%; margin-top:22px; padding:12px; border:0; border-radius:10px;
     background:var(--green); color:#fff; font-size:15px; font-weight:700; font-family:inherit;
     cursor:pointer; transition:background .15s; }
-  button:hover{ background:var(--green-d); }
+  button[type=submit]:hover{ background:var(--green-d); }
+
+  /* Auge zum Sichtbarmachen des Passworts */
+  .pw-feld{ position:relative; }
+  .pw-feld input{ padding-right:44px; }
+  .pw-auge{ position:absolute; right:6px; top:50%; transform:translateY(-50%);
+    width:32px; height:32px; display:flex; align-items:center; justify-content:center;
+    background:none; border:0; border-radius:8px; padding:0; cursor:pointer;
+    color:var(--muted); transition:color .15s, background .15s; }
+  .pw-auge:hover{ color:var(--green-d); background:var(--mint); }
+  .pw-auge:focus-visible{ outline:2px solid var(--green); outline-offset:1px; }
+  /* Standard: offenes Auge (= „anzeigen"). Sichtbares Passwort -> durchgestrichenes. */
+  .pw-auge .auge-zu{ display:none; }
+  .pw-auge[aria-pressed="true"] .auge-offen{ display:none; }
+  .pw-auge[aria-pressed="true"] .auge-zu{ display:inline; }
 
   .fehler{ background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:10px;
     padding:10px 12px; font-size:13.5px; margin:0 0 18px; }
@@ -79,11 +93,41 @@
       </select>
 
       <label for="passwort">Passwort</label>
-      <input id="passwort" name="passwort" type="password" required autocomplete="current-password">
+      <div class="pw-feld">
+        <input id="passwort" name="passwort" type="password" required autocomplete="current-password">
+        <button type="button" id="pw-schalter" class="pw-auge"
+                aria-label="Passwort anzeigen" aria-pressed="false" title="Passwort anzeigen">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path class="auge-offen" d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle class="auge-offen" cx="12" cy="12" r="3"/>
+            <path class="auge-zu" d="M17.9 17.9A10.7 10.7 0 0 1 12 20C5 20 1 12 1 12a19.8 19.8 0 0 1 5.1-5.9m3.8-1.8A10.9 10.9 0 0 1 12 4c7 0 11 8 11 8a19.9 19.9 0 0 1-2.2 3.2M9.9 9.9a3 3 0 1 0 4.2 4.2"/>
+            <line class="auge-zu" x1="1" y1="1" x2="23" y2="23"/>
+          </svg>
+        </button>
+      </div>
 
       <button type="submit">Anmelden</button>
     {% endif %}
   </form>
 </div>
+
+<script>
+(function(){
+  var feld = document.getElementById('passwort');
+  var schalter = document.getElementById('pw-schalter');
+  if(!feld || !schalter) return;               // fehlt, solange kein Zugang eingerichtet ist
+  schalter.addEventListener('click', function(){
+    var sichtbar = feld.type === 'text';
+    feld.type = sichtbar ? 'password' : 'text';
+    schalter.setAttribute('aria-pressed', String(!sichtbar));
+    var text = sichtbar ? 'Passwort anzeigen' : 'Passwort verbergen';
+    schalter.setAttribute('aria-label', text);
+    schalter.title = text;
+    // Zuruck ins Feld, damit weitergetippt werden kann, ohne neu zu klicken.
+    feld.focus();
+  });
+})();
+</script>
 </body>
 </html>
