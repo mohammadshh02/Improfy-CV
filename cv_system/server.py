@@ -358,8 +358,48 @@ Aufbau (verbindlich):
 Gib AUSSCHLIESSLICH das HTML-Dokument zurück – KEIN Markdown, KEINE Code-Fences, KEIN Kommentar."""
 
 
+DRUCK_ABSICHERUNG = """
+<style id="improfy-druckabsicherung">
+/* Serverseitig angehängt — bewusst als LETZTES, damit es gewinnt.
+   Grund: KI-erzeugte Designs bauen gern feste "Seiten"-Container und setzen die
+   Ränder nur als padding auf Seite 1. Passt der Inhalt nicht in die
+   angenommene Seitenzahl, läuft alles ab Seite 3 ohne jeden Rand bis an die
+   Papierkante — genau so ausgeliefert worden. Der Prompt allein reicht dagegen
+   nicht, das muss erzwungen werden. */
+@page { size:A4; margin:16mm 14mm 16mm; }
+html, body { margin:0; padding:0; }
+/* Feste Seitenhöhen aufheben: sonst reißt der Umbruch statt weiterzufließen. */
+[class*="page"], [class*="Page"], [class*="seite"], [class*="Seite"],
+[class*="sheet"], [class*="blatt"], [id*="page"], [id*="seite"] {
+  height:auto; min-height:0; max-height:none; overflow:visible;
+}
+/* Einträge nicht mitten durchschneiden, Absätze nicht mit einer Zeile allein lassen. */
+li, tr, figure, blockquote { break-inside:avoid; }
+p { orphans:2; widows:2; }
+h1, h2, h3, h4 { break-after:avoid; }
+img { max-width:100%; }
+</style>
+"""
+
+
+def druck_absichern(html):
+    """Druck-Regeln ans Ende des <head> hängen (sonst ans Ende des Dokuments)."""
+    stelle = html.lower().rfind("</head>")
+    if stelle >= 0:
+        return html[:stelle] + DRUCK_ABSICHERUNG + html[stelle:]
+    stelle = html.lower().rfind("</body>")
+    if stelle >= 0:
+        return html[:stelle] + DRUCK_ABSICHERUNG + html[stelle:]
+    return html + DRUCK_ABSICHERUNG
+
+
 def _html_ausschneiden(out):
-    """Aus der Antwort das reine HTML-Dokument herausholen."""
+    """Aus der Antwort das reine HTML-Dokument herausholen.
+
+    Hier läuft jedes KI-erzeugte Design durch — der richtige Ort, um die
+    Druck-Regeln anzuhängen. Die festen Vorlagen kommen hier nicht vorbei und
+    behalten ihr eigenes Seitenlayout.
+    """
     out = (out or "").strip()
     if out.count("&lt;") > 10 and "<html" not in out.lower():
         import html as _htmlmod
@@ -370,7 +410,7 @@ def _html_ausschneiden(out):
         i = lo.find("<html")
     j = lo.rfind("</html>")
     if i >= 0 and j >= 0:
-        return out[i:j + 7]
+        return druck_absichern(out[i:j + 7])
     raise RuntimeError("Die KI hat kein gültiges HTML geliefert.")
 
 
