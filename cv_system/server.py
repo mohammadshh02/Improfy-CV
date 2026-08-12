@@ -382,6 +382,43 @@ img { max-width:100%; }
 """
 
 
+def pruefe_ki_design(html, daten, foto_uri):
+    """Grobe Fehler im KI-Design finden, bevor der Kunde sie zu sehen bekommt.
+
+    Die Designs werden bei jedem Klick neu erzeugt und fallen mal gut, mal
+    unbrauchbar aus. Hier stehen nur Dinge, die eindeutig kaputt sind — keine
+    Geschmacksfragen. Wer hier durchfällt, wird durch die feste Vorlage ersetzt.
+    """
+    maengel = []
+    ohne_leer = html.replace(" ", "").replace("\n", "")
+
+    if foto_uri and "data:image" not in html:
+        maengel.append("Foto fehlt (Platzhalter __FOTO__ nicht im HTML)")
+
+    for feld, bezeichnung in (("nachname", "Nachname"), ("vorname", "Vorname")):
+        wert = (daten.get(feld) or "").strip()
+        if wert and wert not in html:
+            maengel.append(f"{bezeichnung} steht nicht im Dokument")
+
+    # position:fixed wiederholt sich beim Drucken auf jeder Seite und legt sich
+    # über den Text — im Prompt steht ausdrücklich, dass es nicht benutzt wird.
+    if "position:fixed" in ohne_leer:
+        maengel.append("position:fixed benutzt (überdeckt den Text auf Folgeseiten)")
+
+    # Ein Dokument ohne Berufserfahrung ist kein Lebenslauf.
+    beruf = daten.get("berufserfahrung") or []
+    if beruf:
+        treffer = sum(1 for b in beruf if (b.get("jobtitel") or "").strip()
+                      and b["jobtitel"].strip() in html)
+        if treffer < max(1, len(beruf) // 2):
+            maengel.append(f"nur {treffer} von {len(beruf)} Stationen übernommen")
+
+    if len(html) < 2000:
+        maengel.append(f"Dokument verdächtig kurz ({len(html)} Zeichen)")
+
+    return maengel
+
+
 def druck_absichern(html):
     """Druck-Regeln ans Ende des <head> hängen (sonst ans Ende des Dokuments)."""
     stelle = html.lower().rfind("</head>")
@@ -843,20 +880,34 @@ def cv_pdf():
     if foto and foto.filename:
         foto_uri = _foto_data_uri(foto.read(), foto.mimetype)
 
+    def feste_vorlage(name="cv_gruen.html"):
+        beruf = [improfy_block(daten)] + (daten.get("berufserfahrung") or [])
+        return render_template(name, d=daten, beruf=beruf, foto=foto_uri,
+                               niveau=_niveau_txt, logo=LOGO_URI)
+
     design = request.form.get("design") or "gruen"
     if design in DESIGNS:  # feste, schnelle HTML-Vorlage
-        beruf = [improfy_block(daten)] + (daten.get("berufserfahrung") or [])
-        html = render_template(DESIGNS[design], d=daten, beruf=beruf, foto=foto_uri, niveau=_niveau_txt, logo=LOGO_URI)
-    elif design in VORLAGEN_BY_ID and ki_verfuegbar():  # find-hire Vorlage 1:1 nachbauen
-        ref = os.path.join(VORLAGEN_DIR, VORLAGEN_BY_ID[design]["ref"])
-        html = design_from_reference(daten, ref)
+        html = feste_vorlage(DESIGNS[design])
+    elif ki_verfuegbar() and (design in VORLAGEN_BY_ID or True):
+        # KI-Weg: entweder eine Galerie-Vorlage nachbauen oder einen freien Stil.
+        if design in VORLAGEN_BY_ID:
+            ref = os.path.join(VORLAGEN_DIR, VORLAGEN_BY_ID[design]["ref"])
+            html = design_from_reference(daten, ref)
+        else:
+            html = design_via_claude(daten, design)
         html = html.replace("__FOTO__", foto_uri or PLACEHOLDER_FOTO)
-    elif ki_verfuegbar():  # weitere Stile werden von Claude generiert
-        html = design_via_claude(daten, design)
-        html = html.replace("__FOTO__", foto_uri or PLACEHOLDER_FOTO)
+
+        # Das Ergebnis der KI PRÜFEN, bevor es beim Kunden landet. Ein Lauf hat
+        # schon einen Lebenslauf ganz ohne Foto ausgeliefert, weil der
+        # Platzhalter im erzeugten HTML fehlte und das niemandem auffiel.
+        maengel = pruefe_ki_design(html, daten, foto_uri)
+        if maengel:
+            print(f"[design] KI-Design '{design}' verworfen: {'; '.join(maengel)}"
+                  f" — es wird die feste Vorlage geliefert.", file=sys.stderr)
+            _protokoll("design_verworfen", status="fehler")
+            html = feste_vorlage()
     else:
-        beruf = [improfy_block(daten)] + (daten.get("berufserfahrung") or [])
-        html = render_template("cv_gruen.html", d=daten, beruf=beruf, foto=foto_uri, niveau=_niveau_txt, logo=LOGO_URI)
+        html = feste_vorlage()
     try:
         pdf = html_to_pdf(html)
     except Exception:

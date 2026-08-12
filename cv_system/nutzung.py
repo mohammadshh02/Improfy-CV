@@ -43,6 +43,7 @@ AKTIONEN = {
     "ki_auswertung": "KI-Auswertung",
     "login":         "Anmeldung",
     "login_fehler":  "Fehlversuch",
+    "design_verworfen": "KI-Design verworfen",
 }
 # Was als „Nutzung" gilt — Anmeldungen sind kein Arbeitsergebnis.
 ARBEIT = ("lebenslauf", "pdf_design", "ki_auswertung")
